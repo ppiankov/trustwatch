@@ -9,16 +9,28 @@ const defaultAPIServerTarget = "kubernetes.default.svc:443"
 
 // APIServerDiscoverer probes the Kubernetes API server TLS endpoint.
 type APIServerDiscoverer struct {
-	target string
+	probeFn func(string) probe.Result
+	target  string
 }
 
 // NewAPIServerDiscoverer creates a discoverer for the Kubernetes API server.
 // If target is empty, defaults to kubernetes.default.svc:443.
-func NewAPIServerDiscoverer(target string) *APIServerDiscoverer {
+func NewAPIServerDiscoverer(target string, opts ...func(*APIServerDiscoverer)) *APIServerDiscoverer {
 	if target == "" {
 		target = defaultAPIServerTarget
 	}
-	return &APIServerDiscoverer{target: target}
+	d := &APIServerDiscoverer{target: target, probeFn: probe.Probe}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithProbeFn sets a custom probe function (e.g. REST-transport-aware).
+func WithProbeFn(fn func(string) probe.Result) func(*APIServerDiscoverer) {
+	return func(d *APIServerDiscoverer) {
+		d.probeFn = fn
+	}
 }
 
 // Name returns the discoverer label.
@@ -28,7 +40,7 @@ func (d *APIServerDiscoverer) Name() string {
 
 // Discover probes the API server and returns a single finding.
 func (d *APIServerDiscoverer) Discover() ([]store.CertFinding, error) {
-	result := probe.Probe(probe.FormatTarget(d.target, ""))
+	result := d.probeFn(probe.FormatTarget(d.target, ""))
 
 	finding := store.CertFinding{
 		Source:   store.SourceAPIServer,
