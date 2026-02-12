@@ -1,3 +1,4 @@
+// Package metrics provides Prometheus instrumentation for trustwatch.
 package metrics
 
 import (
