@@ -1,0 +1,187 @@
+[![CI](https://github.com/ppiankov/trustwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiankov/trustwatch/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ppiankov/trustwatch)](https://goreportcard.com/report/github.com/ppiankov/trustwatch)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+# trustwatch
+
+**Kubernetes trust surface monitoring.** Discovers expiring certificates on admission webhooks, API aggregation endpoints, service mesh issuers, annotated services, and external dependencies — then reports only the ones that matter.
+
+## Quick Start
+
+```bash
+# Install
+go install github.com/ppiankov/trustwatch/cmd/trustwatch@latest
+
+# Scan current cluster
+trustwatch now --context prod
+
+# Run as in-cluster service
+trustwatch serve --config /etc/trustwatch/config.yaml
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | No problems |
+| 1 | Warnings (certs expiring within warn threshold) |
+| 2 | Critical (certs expiring within crit threshold or expired) |
+| 3 | Discovery or probe errors |
+
+## What is trustwatch?
+
+- Discovers trust surfaces that Kubernetes depends on (webhooks, apiservices, mesh issuers)
+- Probes TLS endpoints and reads TLS Secrets for certificate expiry
+- Annotation-driven: teams declare what matters with `trustwatch.dev/*` annotations
+- Accepts external targets via ConfigMap (vault, IdP, databases, anything with TLS)
+- Two modes: `now` (ad-hoc TUI) and `serve` (always-on web UI + Prometheus metrics)
+- Deterministic, rule-based severity (no ML, no anomaly detection)
+- Reports only problems — healthy surfaces stay quiet
+
+## What trustwatch is NOT
+
+- Not a port scanner — discovery is API-driven and annotation-driven
+- Not a cert-manager replacement — it monitors, not manages
+- Not a mesh leaf-cert alarm — ignores short-lived workload certs by design
+- Not a compliance auditor — it reports operational risk, not regulatory posture
+- Not a trust graph visualizer — it shows problems, not topology
+
+## Discovery Sources
+
+### Auto-Critical (always discovered)
+
+| Source | What | Why Critical |
+|--------|------|-------------|
+| API server | `kubernetes.default.svc:443` | Everything depends on it |
+| Admission webhooks | `failurePolicy: Fail` webhooks | Expiry bricks deployments |
+| API aggregation | `APIService` backends | Expiry breaks APIs |
+| Linkerd | Trust roots + issuer Secret | Expiry breaks mesh identity |
+| Istio | CA/root/intermediate materials | Expiry breaks mesh identity |
+
+### Opt-In (annotation-driven)
+
+Annotate any Service or Deployment:
+
+```yaml
+metadata:
+  annotations:
+    trustwatch.dev/enabled: "true"
+    trustwatch.dev/severity: "critical"
+    trustwatch.dev/ports: "443,8443"
+    trustwatch.dev/sni: "api.internal"
+```
+
+Declare external dependencies:
+
+```yaml
+metadata:
+  annotations:
+    trustwatch.dev/external-targets: |
+      https://vault.internal:8200
+      tcp://idp.company.com:443?sni=idp.company.com
+```
+
+### ConfigMap Externals
+
+```yaml
+# trustwatch config
+external:
+  - url: "https://vault.company.internal:8200"
+  - url: "tcp://10.0.8.10:9443?sni=api.internal"
+```
+
+## Modes
+
+### `trustwatch now` — Ad-hoc TUI
+
+Run from your laptop. Discovers trust surfaces, probes endpoints, displays problems in a terminal UI.
+
+```bash
+trustwatch now --context prod --warn-before 720h --crit-before 336h
+```
+
+### `trustwatch serve` — In-Cluster Service
+
+Deploy via Helm. Exposes web UI, Prometheus metrics, and JSON API.
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/` | Problems web UI |
+| `/metrics` | Prometheus scrape |
+| `/healthz` | Liveness probe |
+| `/api/v1/snapshot` | JSON findings |
+
+### Prometheus Metrics
+
+```
+certwatch_cert_not_after_timestamp{source, namespace, name, target, severity}
+certwatch_cert_expires_in_seconds{source, namespace, name, target, severity}
+certwatch_probe_ok{source, namespace, name, target, severity}
+```
+
+## Configuration
+
+```yaml
+listenAddr: ":8080"
+metricsPath: "/metrics"
+refreshEvery: "2m"
+warnBefore: "720h"    # 30 days
+critBefore: "336h"    # 14 days
+namespaces: []         # empty = all
+external:
+  - url: "https://vault.internal:8200"
+```
+
+## Architecture
+
+```
+trustwatch
+├── Discovery (Kubernetes API)
+│   ├── Webhooks (Validating + Mutating)
+│   ├── APIService aggregation
+│   ├── TLS Secrets
+│   ├── Ingress TLS refs
+│   ├── Linkerd identity (trust roots + issuer)
+│   ├── Istio CA materials
+│   └── Annotations (trustwatch.dev/*)
+├── Probing (TLS handshake)
+│   ├── In-cluster endpoints
+│   └── External targets (ConfigMap)
+├── Output
+│   ├── TUI (now mode)
+│   ├── Web UI (serve mode)
+│   ├── Prometheus metrics
+│   └── JSON API
+└── Severity
+    ├── Critical: expired, webhook Fail, within crit threshold
+    ├── Warn: within warn threshold
+    └── Info: inventory (metrics only)
+```
+
+## Known Limitations
+
+- Does not detect certs served via Envoy SDS that aren't backed by Kubernetes Secrets
+- Cannot probe endpoints blocked by NetworkPolicy from trustwatch's namespace
+- Mesh leaf/workload certs (24h default) are intentionally ignored to avoid noise
+- No CRD support yet — annotations and ConfigMap only (CRD on roadmap)
+- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services
+
+## Roadmap
+
+- [ ] `now` mode with BubbleTea TUI
+- [ ] `serve` mode with web UI + Prometheus metrics
+- [ ] Webhook + APIService auto-discovery
+- [ ] TLS Secret parsing
+- [ ] Ingress TLS discovery
+- [ ] Linkerd issuer/trust-roots discovery
+- [ ] Istio CA material discovery
+- [ ] Annotation-based target discovery
+- [ ] External targets from ConfigMap
+- [ ] Helm chart
+- [ ] `rules` command (generate PrometheusRule YAML)
+- [ ] cert-manager Certificate CR awareness
+- [ ] TrustPolicy CRD (future)
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
