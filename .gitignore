@@ -1,0 +1,29 @@
+# Binaries
+bin/
+dist/
+/trustwatch
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Go artifacts
+*.out
+coverage.out
+coverage.html
+go.work
+vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+
