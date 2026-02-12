@@ -1,0 +1,86 @@
+version: "2"
+run:
+  issues-exit-code: 1
+  tests: true
+output:
+  formats:
+    text:
+      path: stdout
+      print-linter-name: true
+      print-issued-lines: true
+linters:
+  enable:
+    - dupl
+    - goconst
+    - gocritic
+    - gocyclo
+    - misspell
+    - revive
+    - unconvert
+  settings:
+    dupl:
+      threshold: 100
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocritic:
+      disabled-checks:
+        - commentFormatting
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    gocyclo:
+      min-complexity: 15
+    govet:
+      enable-all: true
+    lll:
+      line-length: 140
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - gocyclo
+        path: _test\.go
+      - linters:
+          - staticcheck
+        text: 'SA9003:'
+      - linters:
+          - goconst
+          - gocyclo
+        path: internal/cli/
+    paths:
+      - vendor
+      - bin
+      - .github
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  uniq-by-line: true
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/ppiankov/trustwatch
+  exclusions:
+    generated: lax
+    paths:
+      - vendor
+      - bin
+      - .github
+      - third_party$
+      - builtin$
+      - examples$
