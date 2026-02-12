@@ -106,11 +106,14 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating aggregator client: %w", err)
 	}
 
+	// Derive API server host from kubeconfig for local probing
+	apiServerTarget := apiServerFromHost(restCfg.Host)
+
 	// Build discoverers
 	discoverers := []discovery.Discoverer{
 		discovery.NewWebhookDiscoverer(clientset),
 		discovery.NewAPIServiceDiscoverer(aggClient),
-		discovery.NewAPIServerDiscoverer(""),
+		discovery.NewAPIServerDiscoverer(apiServerTarget),
 		discovery.NewSecretDiscoverer(clientset),
 		discovery.NewIngressDiscoverer(clientset),
 		discovery.NewLinkerdDiscoverer(clientset),
@@ -231,23 +234,21 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 // buildRESTConfig tries in-cluster config first, falls back to kubeconfig.
 func buildRESTConfig(kubeconfig, kubeCtx string) (*rest.Config, error) {
-	// If explicit kubeconfig or context is given, use that
-	if kubeconfig != "" || kubeCtx != "" {
-		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
-			&clientcmd.ConfigOverrides{CurrentContext: kubeCtx},
-		).ClientConfig()
+	// Try in-cluster first when no explicit flags are given
+	if kubeconfig == "" && kubeCtx == "" {
+		cfg, err := rest.InClusterConfig()
+		if err == nil {
+			return cfg, nil
+		}
 	}
 
-	// Try in-cluster first
-	cfg, err := rest.InClusterConfig()
-	if err == nil {
-		return cfg, nil
+	// Fall back to kubeconfig (respects KUBECONFIG env var)
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if kubeconfig != "" {
+		loadingRules.ExplicitPath = kubeconfig
 	}
-
-	// Fall back to default kubeconfig
 	return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		clientcmd.NewDefaultClientConfigLoadingRules(),
-		&clientcmd.ConfigOverrides{},
+		loadingRules,
+		&clientcmd.ConfigOverrides{CurrentContext: kubeCtx},
 	).ClientConfig()
 }
