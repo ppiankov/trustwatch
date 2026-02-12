@@ -114,9 +114,11 @@ Deploy via Helm. Exposes web UI, Prometheus metrics, and JSON API.
 ### Prometheus Metrics
 
 ```
-certwatch_cert_not_after_timestamp{source, namespace, name, target, severity}
-certwatch_cert_expires_in_seconds{source, namespace, name, target, severity}
-certwatch_probe_ok{source, namespace, name, target, severity}
+certwatch_cert_not_after_timestamp{source, namespace, name, severity}
+certwatch_cert_expires_in_seconds{source, namespace, name, severity}
+certwatch_probe_success{source, namespace, name}
+certwatch_scan_duration_seconds
+certwatch_findings_total{severity}
 ```
 
 ## Configuration
@@ -168,15 +170,15 @@ trustwatch
 
 ## Roadmap
 
-- [ ] `now` mode with BubbleTea TUI
-- [ ] `serve` mode with web UI + Prometheus metrics
-- [ ] Webhook + APIService auto-discovery
-- [ ] TLS Secret parsing
-- [ ] Ingress TLS discovery
-- [ ] Linkerd issuer/trust-roots discovery
-- [ ] Istio CA material discovery
-- [ ] Annotation-based target discovery
-- [ ] External targets from ConfigMap
+- [x] `now` mode with BubbleTea TUI
+- [x] `serve` mode with web UI + Prometheus metrics
+- [x] Webhook + APIService auto-discovery
+- [x] TLS Secret parsing
+- [x] Ingress TLS discovery
+- [x] Linkerd issuer/trust-roots discovery
+- [x] Istio CA material discovery
+- [x] Annotation-based target discovery
+- [x] External targets from config
 - [ ] Helm chart
 - [ ] `rules` command (generate PrometheusRule YAML)
 - [ ] cert-manager Certificate CR awareness
