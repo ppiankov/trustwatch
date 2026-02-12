@@ -2,12 +2,14 @@ package cli
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
@@ -15,6 +17,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
 	"github.com/ppiankov/trustwatch/internal/monitor"
+	"github.com/ppiankov/trustwatch/internal/probe"
 )
 
 var nowCmd = &cobra.Command{
@@ -116,7 +119,7 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	discoverers := []discovery.Discoverer{
 		discovery.NewWebhookDiscoverer(clientset),
 		discovery.NewAPIServiceDiscoverer(aggClient),
-		discovery.NewAPIServerDiscoverer(apiServerTarget),
+		discovery.NewAPIServerDiscoverer(apiServerTarget, discovery.WithProbeFn(restProbe(restCfg))),
 		discovery.NewSecretDiscoverer(clientset),
 		discovery.NewIngressDiscoverer(clientset),
 		discovery.NewLinkerdDiscoverer(clientset),
@@ -170,4 +173,41 @@ func apiServerFromHost(host string) string {
 		return ""
 	}
 	return u.Host
+}
+
+// restProbe returns a probe function that uses the REST config's transport
+// (proxy, exec auth, tunnels) to reach the API server and extract its TLS cert.
+func restProbe(cfg *rest.Config) func(string) probe.Result {
+	return func(_ string) probe.Result {
+		probeCfg := rest.CopyConfig(cfg)
+		probeCfg.TLSClientConfig.Insecure = true
+		probeCfg.TLSClientConfig.CAData = nil
+		probeCfg.TLSClientConfig.CAFile = ""
+
+		transport, err := rest.TransportFor(probeCfg)
+		if err != nil {
+			return probe.Result{ProbeErr: fmt.Sprintf("building transport: %v", err)}
+		}
+
+		req, err := http.NewRequest(http.MethodGet, cfg.Host+"/version", http.NoBody)
+		if err != nil {
+			return probe.Result{ProbeErr: fmt.Sprintf("building request: %v", err)}
+		}
+
+		resp, err := (&http.Client{Transport: transport}).Do(req)
+		if err != nil {
+			return probe.Result{ProbeErr: fmt.Sprintf("connecting to apiserver: %v", err)}
+		}
+		defer resp.Body.Close()
+
+		if resp.TLS == nil || len(resp.TLS.PeerCertificates) == 0 {
+			return probe.Result{ProbeErr: "no TLS certificates from apiserver"}
+		}
+
+		return probe.Result{
+			Cert:    resp.TLS.PeerCertificates[0],
+			Chain:   resp.TLS.PeerCertificates,
+			ProbeOK: true,
+		}
+	}
 }
