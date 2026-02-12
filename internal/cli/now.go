@@ -2,8 +2,18 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+
+	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+
+	"github.com/ppiankov/trustwatch/internal/config"
+	"github.com/ppiankov/trustwatch/internal/discovery"
+	"github.com/ppiankov/trustwatch/internal/monitor"
 )
 
 var nowCmd = &cobra.Command{
@@ -29,8 +39,115 @@ func init() {
 	nowCmd.Flags().Duration("crit-before", 0, "Critical threshold (default from config)")
 }
 
-func runNow(_ *cobra.Command, _ []string) error {
-	fmt.Println("trustwatch", version)
-	fmt.Println("Discovery and probing not yet implemented.")
+func runNow(cmd *cobra.Command, _ []string) error {
+	cfgPath, err := cmd.Flags().GetString("config")
+	if err != nil {
+		return err
+	}
+	cfg := config.Defaults()
+	if cfgPath != "" {
+		cfg, err = config.Load(cfgPath)
+		if err != nil {
+			return fmt.Errorf("loading config: %w", err)
+		}
+	}
+
+	// Override thresholds from flags
+	warnDur, _ := cmd.Flags().GetDuration("warn-before") //nolint:errcheck // flag registered above
+	if warnDur > 0 {
+		cfg.WarnBefore = warnDur
+	}
+	critDur, _ := cmd.Flags().GetDuration("crit-before") //nolint:errcheck // flag registered above
+	if critDur > 0 {
+		cfg.CritBefore = critDur
+	}
+	ns, _ := cmd.Flags().GetStringSlice("namespace") //nolint:errcheck // flag registered above
+	if len(ns) > 0 {
+		cfg.Namespaces = ns
+	}
+
+	// Build Kubernetes client
+	kubeconfig, err := cmd.Flags().GetString("kubeconfig")
+	if err != nil {
+		return err
+	}
+	kubeCtx, err := cmd.Flags().GetString("context")
+	if err != nil {
+		return err
+	}
+
+	restCfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+		&clientcmd.ConfigOverrides{CurrentContext: kubeCtx},
+	).ClientConfig()
+	if err != nil {
+		return fmt.Errorf("building kubeconfig: %w", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		return fmt.Errorf("creating kubernetes client: %w", err)
+	}
+
+	aggClient, err := aggregatorclient.NewForConfig(restCfg)
+	if err != nil {
+		return fmt.Errorf("creating aggregator client: %w", err)
+	}
+
+	// Resolve context name for display
+	if kubeCtx == "" {
+		raw, rawErr := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+			&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+			&clientcmd.ConfigOverrides{},
+		).RawConfig()
+		if rawErr == nil {
+			kubeCtx = raw.CurrentContext
+		}
+	}
+
+	// Build discoverers
+	discoverers := []discovery.Discoverer{
+		discovery.NewWebhookDiscoverer(clientset),
+		discovery.NewAPIServiceDiscoverer(aggClient),
+		discovery.NewAPIServerDiscoverer(""),
+		discovery.NewSecretDiscoverer(clientset),
+		discovery.NewIngressDiscoverer(clientset),
+		discovery.NewLinkerdDiscoverer(clientset),
+		discovery.NewIstioDiscoverer(clientset),
+		discovery.NewAnnotationDiscoverer(clientset),
+	}
+	if len(cfg.External) > 0 {
+		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External))
+	}
+
+	// Run discovery
+	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
+	snap := orch.Run()
+
+	// Display results
+	exitCode := monitor.ExitCode(snap)
+
+	if isInteractive() {
+		m := monitor.NewModel(snap, kubeCtx)
+		p := tea.NewProgram(m, tea.WithAltScreen())
+		if _, err := p.Run(); err != nil {
+			return fmt.Errorf("TUI error: %w", err)
+		}
+	} else {
+		fmt.Print(monitor.PlainText(snap))
+	}
+
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
 	return nil
+}
+
+// isInteractive returns true if stdout is a terminal.
+func isInteractive() bool {
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return fi.Mode()&os.ModeCharDevice != 0
 }
