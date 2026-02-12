@@ -1,6 +1,9 @@
 package probe
 
 import (
+	"context"
+	"errors"
+	"net"
 	"testing"
 )
 
@@ -60,5 +63,61 @@ func TestProbeUnreachable(t *testing.T) {
 	}
 	if result.ProbeErr == "" {
 		t.Error("expected error message for unreachable endpoint")
+	}
+}
+
+func TestProbeWithDialer_DialError(t *testing.T) {
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		return nil, errors.New("socks5: connection refused")
+	}
+
+	result := ProbeWithDialer("tcp://example.com:443", dialFn)
+	if result.ProbeOK {
+		t.Error("expected probe to fail when dial returns error")
+	}
+	if result.ProbeErr != "socks5: connection refused" {
+		t.Errorf("expected dial error message, got %q", result.ProbeErr)
+	}
+}
+
+func TestProbeWithDialer_InvalidURL(t *testing.T) {
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		t.Fatal("dial should not be called for invalid URL")
+		return nil, nil
+	}
+
+	result := ProbeWithDialer("://invalid", dialFn)
+	if result.ProbeOK {
+		t.Error("expected probe to fail for invalid URL")
+	}
+}
+
+func TestProbeWithDialer_UnsupportedScheme(t *testing.T) {
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		t.Fatal("dial should not be called for unsupported scheme")
+		return nil, nil
+	}
+
+	result := ProbeWithDialer("ftp://example.com:21", dialFn)
+	if result.ProbeOK {
+		t.Error("expected probe to fail for unsupported scheme")
+	}
+}
+
+func TestProbeWithDialer_DialerReceivesCorrectAddr(t *testing.T) {
+	var gotNetwork, gotAddr string
+	dialFn := func(_ context.Context, network, addr string) (net.Conn, error) {
+		gotNetwork = network
+		gotAddr = addr
+		return nil, errors.New("test: expected error")
+	}
+
+	ProbeWithDialer("tcp://my-svc.ns.svc:8443", dialFn)
+
+	if gotNetwork != "tcp" {
+		t.Errorf("expected network %q, got %q", "tcp", gotNetwork)
+	}
+	if gotAddr != "my-svc.ns.svc:8443" {
+		t.Errorf("expected addr %q, got %q", "my-svc.ns.svc:8443", gotAddr)
 	}
 }

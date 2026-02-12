@@ -30,10 +30,21 @@ type AnnotationDiscoverer struct {
 }
 
 // NewAnnotationDiscoverer creates a discoverer that scans annotations for TLS targets.
-func NewAnnotationDiscoverer(client kubernetes.Interface) *AnnotationDiscoverer {
-	return &AnnotationDiscoverer{
+func NewAnnotationDiscoverer(client kubernetes.Interface, opts ...func(*AnnotationDiscoverer)) *AnnotationDiscoverer {
+	d := &AnnotationDiscoverer{
 		client:  client,
 		probeFn: probe.Probe,
+	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithAnnotationProbeFn sets a custom probe function for annotation discovery.
+func WithAnnotationProbeFn(fn func(string) probe.Result) func(*AnnotationDiscoverer) {
+	return func(d *AnnotationDiscoverer) {
+		d.probeFn = fn
 	}
 }
 

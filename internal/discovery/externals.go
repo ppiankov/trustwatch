@@ -13,10 +13,21 @@ type ExternalDiscoverer struct {
 }
 
 // NewExternalDiscoverer creates a discoverer for external TLS targets.
-func NewExternalDiscoverer(targets []config.ExternalTarget) *ExternalDiscoverer {
-	return &ExternalDiscoverer{
+func NewExternalDiscoverer(targets []config.ExternalTarget, opts ...func(*ExternalDiscoverer)) *ExternalDiscoverer {
+	d := &ExternalDiscoverer{
 		targets: targets,
 		probeFn: probe.Probe,
+	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithExternalProbeFn sets a custom probe function for external target discovery.
+func WithExternalProbeFn(fn func(string) probe.Result) func(*ExternalDiscoverer) {
+	return func(d *ExternalDiscoverer) {
+		d.probeFn = fn
 	}
 }
 

@@ -1,6 +1,7 @@
 package probe
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -9,6 +10,9 @@ import (
 	"strings"
 	"time"
 )
+
+// DialContextFunc is the signature used by ProbeWithDialer to establish TCP connections.
+type DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
 const defaultTimeout = 5 * time.Second
 
@@ -23,6 +27,15 @@ type Result struct {
 // Probe connects to a TLS endpoint and returns the presented certificate.
 // Accepts urls like https://host:port or tcp://host:port?sni=name.
 func Probe(raw string) Result {
+	return ProbeWithDialer(raw, (&net.Dialer{Timeout: defaultTimeout}).DialContext)
+}
+
+// ProbeWithDialer is like Probe but uses the provided dial function for the
+// underlying TCP connection. This allows routing through a SOCKS5 proxy or
+// any other custom transport.
+//
+//nolint:revive // "ProbeWithDialer" is clearer than "WithDialer" despite stutter
+func ProbeWithDialer(raw string, dialFn DialContextFunc) Result {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return Result{ProbeOK: false, ProbeErr: err.Error()}
@@ -41,17 +54,26 @@ func Probe(raw string) Result {
 		return Result{ProbeOK: false, ProbeErr: fmt.Sprintf("unsupported scheme: %s (use https or tcp)", u.Scheme)}
 	}
 
-	dialer := &net.Dialer{Timeout: defaultTimeout}
-	conn, err := tls.DialWithDialer(dialer, "tcp", hostport, &tls.Config{
-		ServerName:         sni,
-		InsecureSkipVerify: true, // we check expiry, not trust chain
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+	defer cancel()
+
+	rawConn, err := dialFn(ctx, "tcp", hostport)
 	if err != nil {
 		return Result{ProbeOK: false, ProbeErr: err.Error()}
 	}
-	defer conn.Close()
 
-	state := conn.ConnectionState()
+	tlsConn := tls.Client(rawConn, &tls.Config{
+		ServerName:         sni,
+		InsecureSkipVerify: true, // we check expiry, not trust chain
+	})
+
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		rawConn.Close() //nolint:errcheck // best-effort cleanup on handshake failure
+		return Result{ProbeOK: false, ProbeErr: err.Error()}
+	}
+	defer tlsConn.Close() //nolint:errcheck // read-only probe, close error is unactionable
+
+	state := tlsConn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		return Result{ProbeOK: false, ProbeErr: "no peer certificates presented"}
 	}

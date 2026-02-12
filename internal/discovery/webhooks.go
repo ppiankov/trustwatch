@@ -22,10 +22,21 @@ type WebhookDiscoverer struct {
 
 // NewWebhookDiscoverer creates a discoverer that checks ValidatingWebhookConfigurations
 // and MutatingWebhookConfigurations for expiring TLS certificates.
-func NewWebhookDiscoverer(client kubernetes.Interface) *WebhookDiscoverer {
-	return &WebhookDiscoverer{
+func NewWebhookDiscoverer(client kubernetes.Interface, opts ...func(*WebhookDiscoverer)) *WebhookDiscoverer {
+	d := &WebhookDiscoverer{
 		client:  client,
 		probeFn: probe.Probe,
+	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithWebhookProbeFn sets a custom probe function for webhook discovery.
+func WithWebhookProbeFn(fn func(string) probe.Result) func(*WebhookDiscoverer) {
+	return func(d *WebhookDiscoverer) {
+		d.probeFn = fn
 	}
 }
 
