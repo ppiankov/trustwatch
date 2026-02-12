@@ -113,7 +113,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	discoverers := []discovery.Discoverer{
 		discovery.NewWebhookDiscoverer(clientset),
 		discovery.NewAPIServiceDiscoverer(aggClient),
-		discovery.NewAPIServerDiscoverer(apiServerTarget),
+		discovery.NewAPIServerDiscoverer(apiServerTarget, discovery.WithProbeFn(restProbe(restCfg))),
 		discovery.NewSecretDiscoverer(clientset),
 		discovery.NewIngressDiscoverer(clientset),
 		discovery.NewLinkerdDiscoverer(clientset),
