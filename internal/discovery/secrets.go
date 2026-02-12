@@ -13,6 +13,8 @@ import (
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
+const errMissingTLSCrt = "missing tls.crt key"
+
 // SecretDiscoverer inventories TLS certificates stored in kubernetes.io/tls Secrets.
 type SecretDiscoverer struct {
 	client kubernetes.Interface
@@ -55,7 +57,7 @@ func (d *SecretDiscoverer) Discover() ([]store.CertFinding, error) {
 		pemData, ok := s.Data["tls.crt"]
 		if !ok {
 			finding.ProbeOK = false
-			finding.ProbeErr = "missing tls.crt key"
+			finding.ProbeErr = errMissingTLSCrt
 			findings = append(findings, finding)
 			continue
 		}
