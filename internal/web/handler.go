@@ -1,3 +1,4 @@
+// Package web provides HTTP handlers for the trustwatch web UI and API.
 package web
 
 import (
