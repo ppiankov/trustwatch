@@ -5,12 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.0] - 2026-02-12
+
+First functional release. Both `now` and `serve` modes are operational.
 
 ### Added
-- Project scaffolding with CLI (now, serve, version commands)
+- `now` command: ad-hoc TUI scan with BubbleTea, exit codes 0/1/2/3
+- `serve` command: long-running HTTP server with background scan loop
+- Web UI at `/` showing critical and warn findings
+- JSON API at `/api/v1/snapshot`
+- Health endpoint at `/healthz`
+- Prometheus metrics: `certwatch_cert_not_after_timestamp`, `certwatch_cert_expires_in_seconds`, `certwatch_probe_success`, `certwatch_scan_duration_seconds`, `certwatch_findings_total`
+- Discovery: admission webhooks, APIService aggregation, API server, TLS secrets, Ingress TLS, Linkerd identity, Istio CA, annotation-based targets, external targets
+- Concurrent discovery orchestrator with severity classification
 - TLS probe module with SNI support
-- CertFinding data model and Snapshot type
 - YAML configuration with sane defaults
-- Discoverer interface for pluggable trust surface detection
+- Graceful shutdown with SIGINT/SIGTERM handling
 - CI pipeline (test, lint, build, security scan)
