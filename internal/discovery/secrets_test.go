@@ -261,7 +261,7 @@ func TestSecretDiscoverer_MissingTLSCrtKey(t *testing.T) {
 	if f.ProbeOK {
 		t.Error("expected ProbeOK=false for missing tls.crt")
 	}
-	if f.ProbeErr != "missing tls.crt key" {
-		t.Errorf("expected ProbeErr %q, got %q", "missing tls.crt key", f.ProbeErr)
+	if f.ProbeErr != errMissingTLSCrt {
+		t.Errorf("expected ProbeErr %q, got %q", errMissingTLSCrt, f.ProbeErr)
 	}
 }
