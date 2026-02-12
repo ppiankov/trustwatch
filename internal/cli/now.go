@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -76,10 +77,16 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		return err
 	}
 
-	restCfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
+	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
+	if kubeconfig != "" {
+		loadingRules.ExplicitPath = kubeconfig
+	}
+	clientConfig := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
+		loadingRules,
 		&clientcmd.ConfigOverrides{CurrentContext: kubeCtx},
-	).ClientConfig()
+	)
+
+	restCfg, err := clientConfig.ClientConfig()
 	if err != nil {
 		return fmt.Errorf("building kubeconfig: %w", err)
 	}
@@ -96,20 +103,20 @@ func runNow(cmd *cobra.Command, _ []string) error {
 
 	// Resolve context name for display
 	if kubeCtx == "" {
-		raw, rawErr := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfig},
-			&clientcmd.ConfigOverrides{},
-		).RawConfig()
+		raw, rawErr := clientConfig.RawConfig()
 		if rawErr == nil {
 			kubeCtx = raw.CurrentContext
 		}
 	}
 
+	// Derive API server host from kubeconfig for local probing
+	apiServerTarget := apiServerFromHost(restCfg.Host)
+
 	// Build discoverers
 	discoverers := []discovery.Discoverer{
 		discovery.NewWebhookDiscoverer(clientset),
 		discovery.NewAPIServiceDiscoverer(aggClient),
-		discovery.NewAPIServerDiscoverer(""),
+		discovery.NewAPIServerDiscoverer(apiServerTarget),
 		discovery.NewSecretDiscoverer(clientset),
 		discovery.NewIngressDiscoverer(clientset),
 		discovery.NewLinkerdDiscoverer(clientset),
@@ -150,4 +157,17 @@ func isInteractive() bool {
 		return false
 	}
 	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+// apiServerFromHost extracts host:port from a REST config Host URL
+// for use as an API server probe target.
+func apiServerFromHost(host string) string {
+	if host == "" {
+		return ""
+	}
+	u, err := url.Parse(host)
+	if err != nil {
+		return ""
+	}
+	return u.Host
 }
