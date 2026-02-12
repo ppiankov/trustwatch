@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,6 +20,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/discovery"
 	"github.com/ppiankov/trustwatch/internal/monitor"
 	"github.com/ppiankov/trustwatch/internal/probe"
+	"github.com/ppiankov/trustwatch/internal/tunnel"
 )
 
 var nowCmd = &cobra.Command{
@@ -41,6 +44,8 @@ func init() {
 	nowCmd.Flags().StringSlice("namespace", nil, "Namespaces to scan (empty = all)")
 	nowCmd.Flags().Duration("warn-before", 0, "Warn threshold (default from config)")
 	nowCmd.Flags().Duration("crit-before", 0, "Critical threshold (default from config)")
+	nowCmd.Flags().Bool("tunnel", false, "Deploy a SOCKS5 relay pod to route probes through in-cluster DNS")
+	nowCmd.Flags().String("tunnel-ns", "default", "Namespace for the tunnel relay pod")
 }
 
 func runNow(cmd *cobra.Command, _ []string) error {
@@ -112,22 +117,57 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Optionally start a SOCKS5 tunnel for in-cluster DNS resolution
+	useTunnel, _ := cmd.Flags().GetBool("tunnel")     //nolint:errcheck // flag registered above
+	tunnelNS, _ := cmd.Flags().GetString("tunnel-ns") //nolint:errcheck // flag registered above
+
+	var relay *tunnel.Relay
+	var tunnelProbeFn func(string) probe.Result
+	if useTunnel {
+		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS)
+		log.Printf("deploying tunnel relay pod in namespace %q...", tunnelNS)
+		if err := relay.Start(context.Background()); err != nil {
+			return fmt.Errorf("starting tunnel relay: %w", err)
+		}
+		log.Printf("tunnel ready on localhost:%d (pod %s)", relay.LocalPort(), relay.PodName())
+		tunnelProbeFn = relay.ProbeFn()
+	}
+	closeRelay := func() {
+		if relay != nil {
+			if err := relay.Close(); err != nil {
+				log.Printf("warning: cleaning up relay pod: %v", err)
+			}
+		}
+	}
+	defer closeRelay()
+
 	// Derive API server host from kubeconfig for local probing
 	apiServerTarget := apiServerFromHost(restCfg.Host)
 
-	// Build discoverers
+	// Build discoverers — probing discoverers get the tunnel probe function when --tunnel is set
+	var webhookOpts []func(*discovery.WebhookDiscoverer)
+	var apiSvcOpts []func(*discovery.APIServiceDiscoverer)
+	var annotOpts []func(*discovery.AnnotationDiscoverer)
+	var extOpts []func(*discovery.ExternalDiscoverer)
+	if tunnelProbeFn != nil {
+		webhookOpts = append(webhookOpts, discovery.WithWebhookProbeFn(tunnelProbeFn))
+		apiSvcOpts = append(apiSvcOpts, discovery.WithAPIServiceProbeFn(tunnelProbeFn))
+		annotOpts = append(annotOpts, discovery.WithAnnotationProbeFn(tunnelProbeFn))
+		extOpts = append(extOpts, discovery.WithExternalProbeFn(tunnelProbeFn))
+	}
+
 	discoverers := []discovery.Discoverer{
-		discovery.NewWebhookDiscoverer(clientset),
-		discovery.NewAPIServiceDiscoverer(aggClient),
+		discovery.NewWebhookDiscoverer(clientset, webhookOpts...),
+		discovery.NewAPIServiceDiscoverer(aggClient, apiSvcOpts...),
 		discovery.NewAPIServerDiscoverer(apiServerTarget, discovery.WithProbeFn(restProbe(restCfg))),
 		discovery.NewSecretDiscoverer(clientset),
 		discovery.NewIngressDiscoverer(clientset),
 		discovery.NewLinkerdDiscoverer(clientset),
 		discovery.NewIstioDiscoverer(clientset),
-		discovery.NewAnnotationDiscoverer(clientset),
+		discovery.NewAnnotationDiscoverer(clientset, annotOpts...),
 	}
 	if len(cfg.External) > 0 {
-		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External))
+		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External, extOpts...))
 	}
 
 	// Run discovery
@@ -148,6 +188,7 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	if exitCode != 0 {
+		closeRelay() // explicit cleanup before os.Exit bypasses defers
 		os.Exit(exitCode)
 	}
 	return nil
@@ -180,9 +221,9 @@ func apiServerFromHost(host string) string {
 func restProbe(cfg *rest.Config) func(string) probe.Result {
 	return func(_ string) probe.Result {
 		probeCfg := rest.CopyConfig(cfg)
-		probeCfg.TLSClientConfig.Insecure = true
-		probeCfg.TLSClientConfig.CAData = nil
-		probeCfg.TLSClientConfig.CAFile = ""
+		probeCfg.Insecure = true
+		probeCfg.CAData = nil
+		probeCfg.CAFile = ""
 
 		transport, err := rest.TransportFor(probeCfg)
 		if err != nil {
@@ -198,7 +239,7 @@ func restProbe(cfg *rest.Config) func(string) probe.Result {
 		if err != nil {
 			return probe.Result{ProbeErr: fmt.Sprintf("connecting to apiserver: %v", err)}
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck // read-only probe, close error is unactionable
 
 		if resp.TLS == nil || len(resp.TLS.PeerCertificates) == 0 {
 			return probe.Result{ProbeErr: "no TLS certificates from apiserver"}

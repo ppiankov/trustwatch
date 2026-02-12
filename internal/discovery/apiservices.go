@@ -21,10 +21,21 @@ type APIServiceDiscoverer struct {
 
 // NewAPIServiceDiscoverer creates a discoverer that checks APIService objects
 // for expiring TLS certificates on their backing services.
-func NewAPIServiceDiscoverer(client aggregatorclient.Interface) *APIServiceDiscoverer {
-	return &APIServiceDiscoverer{
+func NewAPIServiceDiscoverer(client aggregatorclient.Interface, opts ...func(*APIServiceDiscoverer)) *APIServiceDiscoverer {
+	d := &APIServiceDiscoverer{
 		client:  client,
 		probeFn: probe.Probe,
+	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithAPIServiceProbeFn sets a custom probe function for APIService discovery.
+func WithAPIServiceProbeFn(fn func(string) probe.Result) func(*APIServiceDiscoverer) {
+	return func(d *APIServiceDiscoverer) {
+		d.probeFn = fn
 	}
 }
 
