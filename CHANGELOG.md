@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-02-13
+
+### Added
+- `--tunnel` flag for `now` mode: deploys a temporary SOCKS5 relay pod inside the cluster so probes can resolve in-cluster DNS from a laptop
+- `--tunnel-ns` flag to control which namespace the relay pod is created in (default: `default`)
+- `ProbeWithDialer` function for pluggable TLS probe transport
+- Functional options (`WithProbeFn`) on all probing discoverers (webhooks, apiservices, annotations, externals)
+
 ## [0.1.0] - 2026-02-12
 
 First functional release. Both `now` and `serve` modes are operational.

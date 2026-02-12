@@ -100,6 +100,16 @@ Run from your laptop. Discovers trust surfaces, probes endpoints, displays probl
 trustwatch now --context prod --warn-before 720h --crit-before 336h
 ```
 
+#### `--tunnel`: In-cluster DNS resolution
+
+By default, `now` runs from your laptop and can't resolve in-cluster DNS names (e.g. `webhook-svc.ns.svc:443`). The `--tunnel` flag deploys a temporary SOCKS5 proxy pod inside the cluster and routes all probe traffic through it via port-forwarding:
+
+```bash
+trustwatch now --tunnel --tunnel-ns default
+```
+
+The relay pod (`serjs/go-socks5-proxy`) is cleaned up automatically when trustwatch exits. A 5-minute `activeDeadlineSeconds` ensures cleanup even if trustwatch crashes.
+
 ### `trustwatch serve` — In-Cluster Service
 
 Deploy via Helm. Exposes web UI, Prometheus metrics, and JSON API.
@@ -148,7 +158,8 @@ trustwatch
 │   └── Annotations (trustwatch.dev/*)
 ├── Probing (TLS handshake)
 │   ├── In-cluster endpoints
-│   └── External targets (ConfigMap)
+│   ├── External targets (ConfigMap)
+│   └── SOCKS5 tunnel (--tunnel)
 ├── Output
 │   ├── TUI (now mode)
 │   ├── Web UI (serve mode)
@@ -179,6 +190,7 @@ trustwatch
 - [x] Istio CA material discovery
 - [x] Annotation-based target discovery
 - [x] External targets from config
+- [x] `--tunnel` SOCKS5 relay for laptop-to-cluster probing
 - [ ] Helm chart
 - [ ] `rules` command (generate PrometheusRule YAML)
 - [ ] cert-manager Certificate CR awareness
