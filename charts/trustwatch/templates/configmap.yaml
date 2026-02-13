@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "trustwatch.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "trustwatch.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    listenAddr: {{ .Values.config.listenAddr | quote }}
+    metricsPath: {{ .Values.config.metricsPath | quote }}
+    refreshEvery: {{ .Values.config.refreshEvery | quote }}
+    warnBefore: {{ .Values.config.warnBefore | quote }}
+    critBefore: {{ .Values.config.critBefore | quote }}
+    {{- if .Values.config.namespaces }}
+    namespaces:
+      {{- toYaml .Values.config.namespaces | nindent 6 }}
+    {{- end }}
+    {{- if .Values.config.external }}
+    external:
+      {{- toYaml .Values.config.external | nindent 6 }}
+    {{- end }}

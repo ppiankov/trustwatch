@@ -177,7 +177,30 @@ The relay pod is cleaned up automatically when trustwatch exits. A 5-minute `act
 
 ### `trustwatch serve` — In-Cluster Service
 
-Deploy via Helm. Exposes web UI, Prometheus metrics, and JSON API.
+```bash
+helm install trustwatch charts/trustwatch \
+  --namespace trustwatch --create-namespace \
+  --set image.repository=harbor.example.com/trustwatch/trustwatch
+```
+
+Override config values:
+
+```bash
+helm install trustwatch charts/trustwatch \
+  --namespace trustwatch --create-namespace \
+  --set config.warnBefore=360h \
+  --set config.critBefore=168h
+```
+
+Enable Prometheus ServiceMonitor:
+
+```bash
+helm install trustwatch charts/trustwatch \
+  --namespace trustwatch --create-namespace \
+  --set serviceMonitor.enabled=true
+```
+
+Exposes web UI, Prometheus metrics, and JSON API.
 
 | Endpoint | Purpose |
 |----------|---------|
@@ -257,7 +280,7 @@ trustwatch
 - [x] Annotation-based target discovery
 - [x] External targets from config
 - [x] `--tunnel` SOCKS5 relay for laptop-to-cluster probing
-- [ ] Helm chart
+- [x] Helm chart
 - [ ] `--quiet` / `--verbose` log level control
 - [ ] `rules` command (generate PrometheusRule YAML)
 - [ ] cert-manager Certificate CR awareness
