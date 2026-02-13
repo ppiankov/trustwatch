@@ -138,6 +138,16 @@ trustwatch now --tunnel \
   --tunnel-pull-secret my-registry-creds
 ```
 
+**Air-gapped clusters (self-relay):**
+
+trustwatch includes a built-in SOCKS5 server. If the trustwatch image is already in your registry, use it as its own relay — no extra images needed:
+
+```bash
+trustwatch now --tunnel \
+  --tunnel-image my-registry.io/trustwatch:v0.1.1 \
+  --tunnel-command trustwatch,socks5
+```
+
 **Custom SOCKS5 image:**
 
 If you use a custom image that doesn't run a SOCKS5 server by default, use `--tunnel-command` to supply the entrypoint. The server must listen on port 1080:
