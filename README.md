@@ -243,6 +243,7 @@ trustwatch
 - Mesh leaf/workload certs (24h default) are intentionally ignored to avoid noise
 - No CRD support yet — annotations and ConfigMap only (CRD on roadmap)
 - Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services
+- `--tunnel` mode may log `connection reset by peer` errors from the Kubernetes port-forward layer — these are cosmetic and caused by unreachable probe targets closing the SOCKS5 connection; probe results are unaffected
 
 ## Roadmap
 
@@ -257,6 +258,7 @@ trustwatch
 - [x] External targets from config
 - [x] `--tunnel` SOCKS5 relay for laptop-to-cluster probing
 - [ ] Helm chart
+- [ ] `--quiet` / `--verbose` log level control
 - [ ] `rules` command (generate PrometheusRule YAML)
 - [ ] cert-manager Certificate CR awareness
 - [ ] TrustPolicy CRD (future)
