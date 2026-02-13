@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -28,8 +29,8 @@ import (
 const (
 	relayImage    = "serjs/go-socks5-proxy:latest"
 	relayPort     = 1080
-	podWaitPoll   = 1 * time.Second
-	podWaitMax    = 60 * time.Second
+	podWaitPoll   = 2 * time.Second
+	podWaitMax    = 120 * time.Second
 	activeDeadSec = 300
 )
 
@@ -65,17 +66,25 @@ func (r *Relay) Start(ctx context.Context) error {
 	}
 	r.podName = created.Name
 
-	// Wait for pod to be Running
+	// Wait for pod to be Running (image pull can take a while on cold clusters)
+	var lastPhase corev1.PodPhase
 	err = wait.PollUntilContextTimeout(ctx, podWaitPoll, podWaitMax, true, func(ctx context.Context) (bool, error) {
 		p, getErr := r.clientset.CoreV1().Pods(r.namespace).Get(ctx, r.podName, metav1.GetOptions{})
 		if getErr != nil {
-			return false, getErr
+			return false, nil // transient API error, retry
+		}
+		if p.Status.Phase != lastPhase {
+			lastPhase = p.Status.Phase
+			log.Printf("relay pod %s: %s", r.podName, lastPhase)
+		}
+		if p.Status.Phase == corev1.PodFailed {
+			return false, fmt.Errorf("relay pod failed")
 		}
 		return p.Status.Phase == corev1.PodRunning, nil
 	})
 	if err != nil {
 		r.deletePod(context.Background()) //nolint:errcheck // best-effort cleanup
-		return fmt.Errorf("waiting for relay pod: %w", err)
+		return fmt.Errorf("waiting for relay pod (last phase: %s): %w", lastPhase, err)
 	}
 
 	// Establish port-forward
