@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `--tunnel-pull-secret` flag to set an imagePullSecret on the relay pod for private registries
 - `--tunnel-command` flag to override the relay container entrypoint for custom SOCKS5 images
 - `trustwatch socks5` embedded SOCKS5 server for air-gapped self-relay (no extra image needed)
+- Dockerfile and `make docker-build` for container image builds
 - `ProbeWithDialer` function for pluggable TLS probe transport
 - Functional options (`WithProbeFn`) on all probing discoverers (webhooks, apiservices, annotations, externals)
 
