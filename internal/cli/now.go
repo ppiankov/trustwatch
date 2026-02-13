@@ -177,8 +177,10 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Run discovery
+	log.Printf("scanning %d discovery sources...", len(discoverers))
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
 	snap := orch.Run()
+	log.Printf("scan complete: %d findings", len(snap.Findings))
 
 	// Display results
 	exitCode := monitor.ExitCode(snap)

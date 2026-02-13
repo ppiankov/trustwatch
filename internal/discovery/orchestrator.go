@@ -58,6 +58,7 @@ func (o *Orchestrator) Run() store.Snapshot {
 			log.Printf("discoverer %s failed: %v", r.name, r.err)
 			continue
 		}
+		log.Printf("discoverer %s: %d findings", r.name, len(r.findings))
 		allFindings = append(allFindings, r.findings...)
 	}
 
