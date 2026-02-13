@@ -42,6 +42,7 @@ type Relay struct {
 	clientset  kubernetes.Interface
 	restConfig *rest.Config
 	stopChan   chan struct{}
+	command    []string
 	image      string
 	namespace  string
 	podName    string
@@ -50,7 +51,8 @@ type Relay struct {
 }
 
 // NewRelay creates a relay that will deploy a SOCKS5 proxy pod in the given namespace.
-func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string) *Relay {
+// If command is non-empty, it overrides the container's default entrypoint.
+func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string, command []string) *Relay {
 	if image == "" {
 		image = DefaultImage
 	}
@@ -59,6 +61,7 @@ func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string) *Rela
 		restConfig: cfg,
 		namespace:  ns,
 		image:      image,
+		command:    command,
 		podName:    fmt.Sprintf("trustwatch-relay-%d", time.Now().UnixNano()%100000),
 		stopChan:   make(chan struct{}),
 	}
@@ -97,6 +100,10 @@ func (r *Relay) Start(ctx context.Context) error {
 				msg = fmt.Sprintf("relay pod failed: %s", lastReason)
 			}
 			return false, fmt.Errorf("%s", msg)
+		}
+		// Container exited cleanly — image has no long-running process
+		if p.Status.Phase == corev1.PodSucceeded {
+			return false, fmt.Errorf("relay pod exited (image has no long-running SOCKS5 server; use --tunnel-command)")
 		}
 		// Bail early on permanent image pull failures
 		if isImagePullFailure(lastReason) {
@@ -177,6 +184,7 @@ func (r *Relay) podSpec() *corev1.Pod {
 				{
 					Name:            "socks5",
 					Image:           r.image,
+					Command:         r.command,
 					ImagePullPolicy: pullPolicy,
 					Ports: []corev1.ContainerPort{
 						{ContainerPort: relayPort, Protocol: corev1.ProtocolTCP},
