@@ -22,15 +22,15 @@ trustwatch serve --config /etc/trustwatch/config.yaml
 ### Container Image
 
 ```bash
-# Build
-make docker-build IMAGE=my-registry.io/trustwatch
+# Pull from GitHub Container Registry
+docker pull ghcr.io/ppiankov/trustwatch:latest
 
-# Push
+# Or build locally
+make docker-build IMAGE=my-registry.io/trustwatch
 docker push my-registry.io/trustwatch:v0.1.1
-docker push my-registry.io/trustwatch:latest
 ```
 
-The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on each release. The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
 
 ### Exit Codes
 
