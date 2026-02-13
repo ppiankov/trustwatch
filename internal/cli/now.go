@@ -48,6 +48,7 @@ func init() {
 	nowCmd.Flags().String("tunnel-ns", "default", "Namespace for the tunnel relay pod")
 	nowCmd.Flags().String("tunnel-image", tunnel.DefaultImage, "SOCKS5 proxy image for --tunnel")
 	nowCmd.Flags().StringSlice("tunnel-command", nil, "Override container command (e.g. 'microsocks,-p,1080')")
+	nowCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
 }
 
 func runNow(cmd *cobra.Command, _ []string) error {
@@ -120,15 +121,16 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Optionally start a SOCKS5 tunnel for in-cluster DNS resolution
-	useTunnel, _ := cmd.Flags().GetBool("tunnel")                //nolint:errcheck // flag registered above
-	tunnelNS, _ := cmd.Flags().GetString("tunnel-ns")            //nolint:errcheck // flag registered above
-	tunnelImg, _ := cmd.Flags().GetString("tunnel-image")        //nolint:errcheck // flag registered above
-	tunnelCmd, _ := cmd.Flags().GetStringSlice("tunnel-command") //nolint:errcheck // flag registered above
+	useTunnel, _ := cmd.Flags().GetBool("tunnel")                  //nolint:errcheck // flag registered above
+	tunnelNS, _ := cmd.Flags().GetString("tunnel-ns")              //nolint:errcheck // flag registered above
+	tunnelImg, _ := cmd.Flags().GetString("tunnel-image")          //nolint:errcheck // flag registered above
+	tunnelCmd, _ := cmd.Flags().GetStringSlice("tunnel-command")   //nolint:errcheck // flag registered above
+	tunnelSecret, _ := cmd.Flags().GetString("tunnel-pull-secret") //nolint:errcheck // flag registered above
 
 	var relay *tunnel.Relay
 	var tunnelProbeFn func(string) probe.Result
 	if useTunnel {
-		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS, tunnelImg, tunnelCmd)
+		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS, tunnelImg, tunnelCmd, tunnelSecret)
 		log.Printf("deploying tunnel relay pod in namespace %q...", tunnelNS)
 		if err := relay.Start(context.Background()); err != nil {
 			return fmt.Errorf("starting tunnel relay: %w", err)

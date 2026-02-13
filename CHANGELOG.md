@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `--tunnel` flag for `now` mode: deploys a temporary SOCKS5 relay pod inside the cluster so probes can resolve in-cluster DNS from a laptop
 - `--tunnel-ns` flag to control which namespace the relay pod is created in (default: `default`)
 - `--tunnel-image` flag to override the SOCKS5 proxy image (default: `serjs/go-socks5-proxy:latest`)
+- `--tunnel-pull-secret` flag to set an imagePullSecret on the relay pod for private registries
+- `--tunnel-command` flag to override the relay container entrypoint for custom SOCKS5 images
 - `ProbeWithDialer` function for pluggable TLS probe transport
 - Functional options (`WithProbeFn`) on all probing discoverers (webhooks, apiservices, annotations, externals)
 
