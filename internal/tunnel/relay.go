@@ -46,13 +46,15 @@ type Relay struct {
 	image      string
 	namespace  string
 	podName    string
+	pullSecret string
 	closeOnce  sync.Once
 	localPort  uint16
 }
 
 // NewRelay creates a relay that will deploy a SOCKS5 proxy pod in the given namespace.
 // If command is non-empty, it overrides the container's default entrypoint.
-func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string, command []string) *Relay {
+// If pullSecret is non-empty, it is set as an imagePullSecret on the pod.
+func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string, command []string, pullSecret string) *Relay {
 	if image == "" {
 		image = DefaultImage
 	}
@@ -62,6 +64,7 @@ func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string, comma
 		namespace:  ns,
 		image:      image,
 		command:    command,
+		pullSecret: pullSecret,
 		podName:    fmt.Sprintf("trustwatch-relay-%d", time.Now().UnixNano()%100000),
 		stopChan:   make(chan struct{}),
 	}
@@ -168,6 +171,10 @@ func (r *Relay) podSpec() *corev1.Pod {
 	if strings.HasSuffix(r.image, ":latest") {
 		pullPolicy = corev1.PullAlways
 	}
+	var imagePullSecrets []corev1.LocalObjectReference
+	if r.pullSecret != "" {
+		imagePullSecrets = []corev1.LocalObjectReference{{Name: r.pullSecret}}
+	}
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.podName,
@@ -180,6 +187,7 @@ func (r *Relay) podSpec() *corev1.Pod {
 		Spec: corev1.PodSpec{
 			RestartPolicy:         corev1.RestartPolicyNever,
 			ActiveDeadlineSeconds: &activeDeadline,
+			ImagePullSecrets:      imagePullSecrets,
 			Containers: []corev1.Container{
 				{
 					Name:            "socks5",

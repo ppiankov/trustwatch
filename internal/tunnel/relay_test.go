@@ -10,7 +10,7 @@ import (
 )
 
 func TestPodSpec_Labels(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	want := map[string]string{
@@ -31,7 +31,7 @@ func TestPodSpec_Labels(t *testing.T) {
 }
 
 func TestPodSpec_Image(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	if len(pod.Spec.Containers) != 1 {
@@ -44,7 +44,7 @@ func TestPodSpec_Image(t *testing.T) {
 }
 
 func TestPodSpec_ActiveDeadline(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	if pod.Spec.ActiveDeadlineSeconds == nil {
@@ -56,7 +56,7 @@ func TestPodSpec_ActiveDeadline(t *testing.T) {
 }
 
 func TestPodSpec_RestartPolicy(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	if pod.Spec.RestartPolicy != corev1.RestartPolicyNever {
@@ -65,7 +65,7 @@ func TestPodSpec_RestartPolicy(t *testing.T) {
 }
 
 func TestPodSpec_Resources(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -92,7 +92,7 @@ func TestPodSpec_Resources(t *testing.T) {
 }
 
 func TestPodSpec_Port(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -108,7 +108,7 @@ func TestPodSpec_Port(t *testing.T) {
 }
 
 func TestPodSpec_Namespace(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "kube-system", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "kube-system", "", nil, "")
 	pod := r.podSpec()
 
 	if pod.Namespace != "kube-system" {
@@ -117,7 +117,7 @@ func TestPodSpec_Namespace(t *testing.T) {
 }
 
 func TestNewRelay_PodNamePrefix(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	if r.podName == "" {
 		t.Error("expected non-empty pod name")
 	}
@@ -129,7 +129,7 @@ func TestNewRelay_PodNamePrefix(t *testing.T) {
 
 func TestClose_Idempotent(t *testing.T) {
 	cs := fake.NewClientset()
-	r := NewRelay(cs, &rest.Config{}, "default", "", nil)
+	r := NewRelay(cs, &rest.Config{}, "default", "", nil, "")
 
 	// Close without Start — should not panic
 	if err := r.Close(); err != nil {
@@ -141,7 +141,7 @@ func TestClose_Idempotent(t *testing.T) {
 }
 
 func TestPodSpec_CustomImage(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "my-registry.io/socks5:v1.2.3", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "my-registry.io/socks5:v1.2.3", nil, "")
 	pod := r.podSpec()
 
 	if pod.Spec.Containers[0].Image != "my-registry.io/socks5:v1.2.3" {
@@ -153,7 +153,7 @@ func TestPodSpec_CustomImage(t *testing.T) {
 }
 
 func TestPodSpec_LatestImagePullPolicy(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	if pod.Spec.Containers[0].ImagePullPolicy != corev1.PullAlways {
@@ -240,7 +240,7 @@ func TestIsImagePullFailure(t *testing.T) {
 
 func TestPodSpec_CustomCommand(t *testing.T) {
 	cmd := []string{"microsocks", "-p", "1080"}
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "netshoot:latest", cmd)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "netshoot:latest", cmd, "")
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -250,7 +250,7 @@ func TestPodSpec_CustomCommand(t *testing.T) {
 }
 
 func TestPodSpec_NoCommandByDefault(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	pod := r.podSpec()
 
 	if pod.Spec.Containers[0].Command != nil {
@@ -259,7 +259,7 @@ func TestPodSpec_NoCommandByDefault(t *testing.T) {
 }
 
 func TestProbeFn_ReturnsFunction(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
 	fn := r.ProbeFn()
 	if fn == nil {
 		t.Fatal("expected non-nil ProbeFn")
@@ -272,5 +272,26 @@ func TestProbeFn_ReturnsFunction(t *testing.T) {
 	}
 	if result.ProbeErr == "" {
 		t.Error("expected non-empty error from probe without running relay")
+	}
+}
+
+func TestPodSpec_PullSecret(t *testing.T) {
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "my-registry-creds")
+	pod := r.podSpec()
+
+	if len(pod.Spec.ImagePullSecrets) != 1 {
+		t.Fatalf("expected 1 imagePullSecret, got %d", len(pod.Spec.ImagePullSecrets))
+	}
+	if pod.Spec.ImagePullSecrets[0].Name != "my-registry-creds" {
+		t.Errorf("expected imagePullSecret %q, got %q", "my-registry-creds", pod.Spec.ImagePullSecrets[0].Name)
+	}
+}
+
+func TestPodSpec_NoPullSecretByDefault(t *testing.T) {
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil, "")
+	pod := r.podSpec()
+
+	if len(pod.Spec.ImagePullSecrets) != 0 {
+		t.Errorf("expected no imagePullSecrets, got %d", len(pod.Spec.ImagePullSecrets))
 	}
 }

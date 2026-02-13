@@ -105,16 +105,52 @@ trustwatch now --context prod --warn-before 720h --crit-before 336h
 By default, `now` runs from your laptop and can't resolve in-cluster DNS names (e.g. `webhook-svc.ns.svc:443`). The `--tunnel` flag deploys a temporary SOCKS5 proxy pod inside the cluster and routes all probe traffic through it via port-forwarding:
 
 ```bash
-trustwatch now --tunnel --tunnel-ns default
+trustwatch now --tunnel
 ```
 
-If your cluster can't pull from Docker Hub, override the image:
+**Flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--tunnel` | `false` | Enable the in-cluster SOCKS5 relay |
+| `--tunnel-ns` | `default` | Namespace for the relay pod |
+| `--tunnel-image` | `serjs/go-socks5-proxy:latest` | SOCKS5 proxy image |
+| `--tunnel-pull-secret` | _(empty)_ | imagePullSecret name for private registries |
+| `--tunnel-command` | _(empty)_ | Override container entrypoint (comma-separated) |
+
+**Private registries / air-gapped clusters:**
+
+If your cluster can't pull from Docker Hub, mirror the image and use `--tunnel-image`:
 
 ```bash
-trustwatch now --tunnel --tunnel-image my-registry.io/socks5-proxy:v1.0
+# Mirror with crane or skopeo
+crane copy serjs/go-socks5-proxy:latest my-registry.io/socks5-proxy:latest
+# or: skopeo copy docker://serjs/go-socks5-proxy:latest docker://my-registry.io/socks5-proxy:latest
+
+trustwatch now --tunnel --tunnel-image my-registry.io/socks5-proxy:latest
 ```
 
-The relay pod is cleaned up automatically when trustwatch exits. A 5-minute `activeDeadlineSeconds` ensures cleanup even if trustwatch crashes.
+If the registry requires authentication, create an imagePullSecret and pass it:
+
+```bash
+trustwatch now --tunnel \
+  --tunnel-image my-registry.io/socks5-proxy:latest \
+  --tunnel-pull-secret my-registry-creds
+```
+
+**Custom SOCKS5 image:**
+
+If you use a custom image that doesn't run a SOCKS5 server by default, use `--tunnel-command` to supply the entrypoint. The server must listen on port 1080:
+
+```bash
+trustwatch now --tunnel \
+  --tunnel-image nicolaka/netshoot:latest \
+  --tunnel-command microsocks,-p,1080
+```
+
+**Relay pod lifecycle:**
+
+The relay pod is cleaned up automatically when trustwatch exits. A 5-minute `activeDeadlineSeconds` safety net ensures the pod is terminated even if trustwatch crashes or the connection drops.
 
 ### `trustwatch serve` — In-Cluster Service
 
