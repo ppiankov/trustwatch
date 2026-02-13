@@ -108,7 +108,13 @@ By default, `now` runs from your laptop and can't resolve in-cluster DNS names (
 trustwatch now --tunnel --tunnel-ns default
 ```
 
-The relay pod (`serjs/go-socks5-proxy`) is cleaned up automatically when trustwatch exits. A 5-minute `activeDeadlineSeconds` ensures cleanup even if trustwatch crashes.
+If your cluster can't pull from Docker Hub, override the image:
+
+```bash
+trustwatch now --tunnel --tunnel-image my-registry.io/socks5-proxy:v1.0
+```
+
+The relay pod is cleaned up automatically when trustwatch exits. A 5-minute `activeDeadlineSeconds` ensures cleanup even if trustwatch crashes.
 
 ### `trustwatch serve` — In-Cluster Service
 

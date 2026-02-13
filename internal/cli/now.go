@@ -46,6 +46,7 @@ func init() {
 	nowCmd.Flags().Duration("crit-before", 0, "Critical threshold (default from config)")
 	nowCmd.Flags().Bool("tunnel", false, "Deploy a SOCKS5 relay pod to route probes through in-cluster DNS")
 	nowCmd.Flags().String("tunnel-ns", "default", "Namespace for the tunnel relay pod")
+	nowCmd.Flags().String("tunnel-image", tunnel.DefaultImage, "SOCKS5 proxy image for --tunnel")
 }
 
 func runNow(cmd *cobra.Command, _ []string) error {
@@ -118,13 +119,14 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Optionally start a SOCKS5 tunnel for in-cluster DNS resolution
-	useTunnel, _ := cmd.Flags().GetBool("tunnel")     //nolint:errcheck // flag registered above
-	tunnelNS, _ := cmd.Flags().GetString("tunnel-ns") //nolint:errcheck // flag registered above
+	useTunnel, _ := cmd.Flags().GetBool("tunnel")         //nolint:errcheck // flag registered above
+	tunnelNS, _ := cmd.Flags().GetString("tunnel-ns")     //nolint:errcheck // flag registered above
+	tunnelImg, _ := cmd.Flags().GetString("tunnel-image") //nolint:errcheck // flag registered above
 
 	var relay *tunnel.Relay
 	var tunnelProbeFn func(string) probe.Result
 	if useTunnel {
-		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS)
+		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS, tunnelImg)
 		log.Printf("deploying tunnel relay pod in namespace %q...", tunnelNS)
 		if err := relay.Start(context.Background()); err != nil {
 			return fmt.Errorf("starting tunnel relay: %w", err)
@@ -188,8 +190,8 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	if exitCode != 0 {
-		closeRelay() // explicit cleanup before os.Exit bypasses defers
-		os.Exit(exitCode)
+		closeRelay()      // explicit cleanup because os.Exit bypasses defers
+		os.Exit(exitCode) //nolint:gocritic // exitAfterDefer — defer is for the normal-return path; this is the nonzero-exit path
 	}
 	return nil
 }

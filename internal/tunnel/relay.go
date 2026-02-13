@@ -27,7 +27,10 @@ import (
 )
 
 const (
-	relayImage    = "serjs/go-socks5-proxy:latest"
+	// DefaultImage is the default SOCKS5 proxy image.
+	// Override with --tunnel-image if your cluster can't pull from Docker Hub.
+	DefaultImage = "serjs/go-socks5-proxy:latest"
+
 	relayPort     = 1080
 	podWaitPoll   = 2 * time.Second
 	podWaitMax    = 120 * time.Second
@@ -39,6 +42,7 @@ type Relay struct {
 	clientset  kubernetes.Interface
 	restConfig *rest.Config
 	stopChan   chan struct{}
+	image      string
 	namespace  string
 	podName    string
 	closeOnce  sync.Once
@@ -46,11 +50,15 @@ type Relay struct {
 }
 
 // NewRelay creates a relay that will deploy a SOCKS5 proxy pod in the given namespace.
-func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns string) *Relay {
+func NewRelay(cs kubernetes.Interface, cfg *rest.Config, ns, image string) *Relay {
+	if image == "" {
+		image = DefaultImage
+	}
 	return &Relay{
 		clientset:  cs,
 		restConfig: cfg,
 		namespace:  ns,
+		image:      image,
 		podName:    fmt.Sprintf("trustwatch-relay-%d", time.Now().UnixNano()%100000),
 		stopChan:   make(chan struct{}),
 	}
@@ -68,6 +76,7 @@ func (r *Relay) Start(ctx context.Context) error {
 
 	// Wait for pod to be Running (image pull can take a while on cold clusters)
 	var lastPhase corev1.PodPhase
+	var lastReason string
 	err = wait.PollUntilContextTimeout(ctx, podWaitPoll, podWaitMax, true, func(ctx context.Context) (bool, error) {
 		p, getErr := r.clientset.CoreV1().Pods(r.namespace).Get(ctx, r.podName, metav1.GetOptions{})
 		if getErr != nil {
@@ -77,14 +86,27 @@ func (r *Relay) Start(ctx context.Context) error {
 			lastPhase = p.Status.Phase
 			log.Printf("relay pod %s: %s", r.podName, lastPhase)
 		}
+		// Extract container-level detail for better error messages
+		lastReason = containerWaitReason(p)
+		if lastReason != "" && lastReason != "ContainerCreating" && lastReason != "PodInitializing" {
+			log.Printf("relay pod %s: container: %s", r.podName, lastReason)
+		}
 		if p.Status.Phase == corev1.PodFailed {
-			return false, fmt.Errorf("relay pod failed")
+			msg := "relay pod failed"
+			if lastReason != "" {
+				msg = fmt.Sprintf("relay pod failed: %s", lastReason)
+			}
+			return false, fmt.Errorf("%s", msg)
+		}
+		// Bail early on permanent image pull failures
+		if isImagePullFailure(lastReason) {
+			return false, fmt.Errorf("image pull failed for %s: %s", r.image, lastReason)
 		}
 		return p.Status.Phase == corev1.PodRunning, nil
 	})
 	if err != nil {
 		r.deletePod(context.Background()) //nolint:errcheck // best-effort cleanup
-		return fmt.Errorf("waiting for relay pod (last phase: %s): %w", lastPhase, err)
+		return fmt.Errorf("waiting for relay pod (phase: %s): %w", lastPhase, err)
 	}
 
 	// Establish port-forward
@@ -135,6 +157,10 @@ func (r *Relay) PodName() string {
 
 func (r *Relay) podSpec() *corev1.Pod {
 	activeDeadline := int64(activeDeadSec)
+	pullPolicy := corev1.PullIfNotPresent
+	if strings.HasSuffix(r.image, ":latest") {
+		pullPolicy = corev1.PullAlways
+	}
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      r.podName,
@@ -149,8 +175,9 @@ func (r *Relay) podSpec() *corev1.Pod {
 			ActiveDeadlineSeconds: &activeDeadline,
 			Containers: []corev1.Container{
 				{
-					Name:  "socks5",
-					Image: relayImage,
+					Name:            "socks5",
+					Image:           r.image,
+					ImagePullPolicy: pullPolicy,
 					Ports: []corev1.ContainerPort{
 						{ContainerPort: relayPort, Protocol: corev1.ProtocolTCP},
 					},
@@ -224,4 +251,34 @@ func (r *Relay) deletePod(ctx context.Context) error {
 		return fmt.Errorf("deleting relay pod: %w", err)
 	}
 	return nil
+}
+
+// containerWaitReason extracts the waiting reason from the first container status.
+func containerWaitReason(p *corev1.Pod) string {
+	for i := range p.Status.ContainerStatuses {
+		cs := &p.Status.ContainerStatuses[i]
+		if cs.State.Waiting != nil {
+			reason := cs.State.Waiting.Reason
+			if cs.State.Waiting.Message != "" {
+				return fmt.Sprintf("%s: %s", reason, cs.State.Waiting.Message)
+			}
+			return reason
+		}
+		if cs.State.Terminated != nil && cs.State.Terminated.Reason != "" {
+			reason := cs.State.Terminated.Reason
+			if cs.State.Terminated.Message != "" {
+				return fmt.Sprintf("%s: %s", reason, cs.State.Terminated.Message)
+			}
+			return reason
+		}
+	}
+	return ""
+}
+
+// isImagePullFailure returns true for container reasons that indicate
+// a permanent image pull failure (not a transient retry).
+func isImagePullFailure(reason string) bool {
+	return strings.HasPrefix(reason, "ErrImagePull") ||
+		strings.HasPrefix(reason, "ImagePullBackOff") ||
+		strings.HasPrefix(reason, "InvalidImageName")
 }
