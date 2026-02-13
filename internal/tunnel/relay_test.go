@@ -10,7 +10,7 @@ import (
 )
 
 func TestPodSpec_Labels(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	pod := r.podSpec()
 
 	want := map[string]string{
@@ -31,20 +31,20 @@ func TestPodSpec_Labels(t *testing.T) {
 }
 
 func TestPodSpec_Image(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	pod := r.podSpec()
 
 	if len(pod.Spec.Containers) != 1 {
 		t.Fatalf("expected 1 container, got %d", len(pod.Spec.Containers))
 	}
 
-	if pod.Spec.Containers[0].Image != relayImage {
-		t.Errorf("expected image %q, got %q", relayImage, pod.Spec.Containers[0].Image)
+	if pod.Spec.Containers[0].Image != DefaultImage {
+		t.Errorf("expected image %q, got %q", DefaultImage, pod.Spec.Containers[0].Image)
 	}
 }
 
 func TestPodSpec_ActiveDeadline(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	pod := r.podSpec()
 
 	if pod.Spec.ActiveDeadlineSeconds == nil {
@@ -56,7 +56,7 @@ func TestPodSpec_ActiveDeadline(t *testing.T) {
 }
 
 func TestPodSpec_RestartPolicy(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	pod := r.podSpec()
 
 	if pod.Spec.RestartPolicy != corev1.RestartPolicyNever {
@@ -65,7 +65,7 @@ func TestPodSpec_RestartPolicy(t *testing.T) {
 }
 
 func TestPodSpec_Resources(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -92,7 +92,7 @@ func TestPodSpec_Resources(t *testing.T) {
 }
 
 func TestPodSpec_Port(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -108,7 +108,7 @@ func TestPodSpec_Port(t *testing.T) {
 }
 
 func TestPodSpec_Namespace(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "kube-system")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "kube-system", "")
 	pod := r.podSpec()
 
 	if pod.Namespace != "kube-system" {
@@ -117,7 +117,7 @@ func TestPodSpec_Namespace(t *testing.T) {
 }
 
 func TestNewRelay_PodNamePrefix(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	if r.podName == "" {
 		t.Error("expected non-empty pod name")
 	}
@@ -129,7 +129,7 @@ func TestNewRelay_PodNamePrefix(t *testing.T) {
 
 func TestClose_Idempotent(t *testing.T) {
 	cs := fake.NewClientset()
-	r := NewRelay(cs, &rest.Config{}, "default")
+	r := NewRelay(cs, &rest.Config{}, "default", "")
 
 	// Close without Start — should not panic
 	if err := r.Close(); err != nil {
@@ -140,8 +140,106 @@ func TestClose_Idempotent(t *testing.T) {
 	}
 }
 
+func TestPodSpec_CustomImage(t *testing.T) {
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "my-registry.io/socks5:v1.2.3")
+	pod := r.podSpec()
+
+	if pod.Spec.Containers[0].Image != "my-registry.io/socks5:v1.2.3" {
+		t.Errorf("expected custom image, got %q", pod.Spec.Containers[0].Image)
+	}
+	if pod.Spec.Containers[0].ImagePullPolicy != corev1.PullIfNotPresent {
+		t.Errorf("expected PullIfNotPresent for pinned tag, got %s", pod.Spec.Containers[0].ImagePullPolicy)
+	}
+}
+
+func TestPodSpec_LatestImagePullPolicy(t *testing.T) {
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	pod := r.podSpec()
+
+	if pod.Spec.Containers[0].ImagePullPolicy != corev1.PullAlways {
+		t.Errorf("expected PullAlways for :latest tag, got %s", pod.Spec.Containers[0].ImagePullPolicy)
+	}
+}
+
+func TestContainerWaitReason(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want string
+	}{
+		{
+			name: "no container statuses",
+			pod:  &corev1.Pod{},
+			want: "",
+		},
+		{
+			name: "waiting with reason",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					ContainerStatuses: []corev1.ContainerStatus{
+						{State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ErrImagePull"}}},
+					},
+				},
+			},
+			want: "ErrImagePull",
+		},
+		{
+			name: "waiting with reason and message",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					ContainerStatuses: []corev1.ContainerStatus{
+						{State: corev1.ContainerState{Waiting: &corev1.ContainerStateWaiting{Reason: "ErrImagePull", Message: "pull access denied"}}},
+					},
+				},
+			},
+			want: "ErrImagePull: pull access denied",
+		},
+		{
+			name: "terminated with reason",
+			pod: &corev1.Pod{
+				Status: corev1.PodStatus{
+					ContainerStatuses: []corev1.ContainerStatus{
+						{State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{Reason: "OOMKilled"}}},
+					},
+				},
+			},
+			want: "OOMKilled",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containerWaitReason(tt.pod)
+			if got != tt.want {
+				t.Errorf("containerWaitReason() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsImagePullFailure(t *testing.T) {
+	tests := []struct {
+		reason string
+		want   bool
+	}{
+		{"ErrImagePull", true},
+		{"ErrImagePull: access denied", true},
+		{"ImagePullBackOff", true},
+		{"InvalidImageName", true},
+		{"ContainerCreating", false},
+		{"CrashLoopBackOff", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.reason, func(t *testing.T) {
+			if got := isImagePullFailure(tt.reason); got != tt.want {
+				t.Errorf("isImagePullFailure(%q) = %v, want %v", tt.reason, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestProbeFn_ReturnsFunction(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
 	fn := r.ProbeFn()
 	if fn == nil {
 		t.Fatal("expected non-nil ProbeFn")
