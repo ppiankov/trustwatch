@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Dockerfile and `make docker-build` for container image builds
 - Multi-arch container images (`linux/amd64`, `linux/arm64`) published to `ghcr.io/ppiankov/trustwatch` on release
 - Progress logging during discovery phase (per-discoverer completion + summary)
+- Helm chart (`charts/trustwatch/`) with RBAC, ConfigMap, health probes, and optional ServiceMonitor
 - `ProbeWithDialer` function for pluggable TLS probe transport
 - Functional options (`WithProbeFn`) on all probing discoverers (webhooks, apiservices, annotations, externals)
 
