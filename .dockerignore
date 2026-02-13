@@ -1,0 +1,7 @@
+bin/
+coverage.*
+*.md
+!README.md
+.git
+.github
+.vscode

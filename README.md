@@ -19,6 +19,19 @@ trustwatch now --context prod
 trustwatch serve --config /etc/trustwatch/config.yaml
 ```
 
+### Container Image
+
+```bash
+# Build
+make docker-build IMAGE=my-registry.io/trustwatch
+
+# Push
+docker push my-registry.io/trustwatch:v0.1.1
+docker push my-registry.io/trustwatch:latest
+```
+
+The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
+
 ### Exit Codes
 
 | Code | Meaning |

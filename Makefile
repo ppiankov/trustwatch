@@ -1,10 +1,11 @@
-.PHONY: help build test test-coverage lint fmt vet clean install deps run check ci build-all
+.PHONY: help build test test-coverage lint fmt vet clean install deps run check ci build-all docker-build
 
 # Variables
 BINARY_NAME=trustwatch
 BUILD_DIR=bin
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION)"
+IMAGE?=trustwatch
 
 # Go parameters
 GOCMD=go
@@ -97,6 +98,9 @@ build-windows: ## Build for Windows (amd64)
 
 build-all: build-linux build-linux-arm build-darwin build-darwin-arm build-windows ## Build for all platforms
 	@echo "All platform builds complete"
+
+docker-build: ## Build container image (IMAGE=my-registry.io/trustwatch)
+	docker build --build-arg VERSION=$(VERSION) -t $(IMAGE):$(VERSION) -t $(IMAGE):latest .
 
 check: fmt vet lint test ## Run all checks (fmt, vet, lint, test)
 	@echo "All checks passed!"
