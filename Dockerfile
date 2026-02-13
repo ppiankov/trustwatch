@@ -8,6 +8,7 @@ ARG VERSION=dev
 RUN CGO_ENABLED=0 go build -ldflags "-X main.Version=${VERSION}" -o /trustwatch ./cmd/trustwatch
 
 FROM scratch
+ENV PATH=/
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /trustwatch /trustwatch
 ENTRYPOINT ["/trustwatch"]

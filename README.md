@@ -158,7 +158,7 @@ trustwatch includes a built-in SOCKS5 server. If the trustwatch image is already
 ```bash
 trustwatch now --tunnel \
   --tunnel-image my-registry.io/trustwatch:v0.1.1 \
-  --tunnel-command trustwatch,socks5
+  --tunnel-command /trustwatch,socks5
 ```
 
 **Custom SOCKS5 image:**
