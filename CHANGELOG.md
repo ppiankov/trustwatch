@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `--tunnel-command` flag to override the relay container entrypoint for custom SOCKS5 images
 - `trustwatch socks5` embedded SOCKS5 server for air-gapped self-relay (no extra image needed)
 - Dockerfile and `make docker-build` for container image builds
+- Multi-arch container images (`linux/amd64`, `linux/arm64`) published to `ghcr.io/ppiankov/trustwatch` on release
+- Progress logging during discovery phase (per-discoverer completion + summary)
 - `ProbeWithDialer` function for pluggable TLS probe transport
 - Functional options (`WithProbeFn`) on all probing discoverers (webhooks, apiservices, annotations, externals)
 
