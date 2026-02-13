@@ -10,7 +10,7 @@ import (
 )
 
 func TestPodSpec_Labels(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	want := map[string]string{
@@ -31,7 +31,7 @@ func TestPodSpec_Labels(t *testing.T) {
 }
 
 func TestPodSpec_Image(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	if len(pod.Spec.Containers) != 1 {
@@ -44,7 +44,7 @@ func TestPodSpec_Image(t *testing.T) {
 }
 
 func TestPodSpec_ActiveDeadline(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	if pod.Spec.ActiveDeadlineSeconds == nil {
@@ -56,7 +56,7 @@ func TestPodSpec_ActiveDeadline(t *testing.T) {
 }
 
 func TestPodSpec_RestartPolicy(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	if pod.Spec.RestartPolicy != corev1.RestartPolicyNever {
@@ -65,7 +65,7 @@ func TestPodSpec_RestartPolicy(t *testing.T) {
 }
 
 func TestPodSpec_Resources(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -92,7 +92,7 @@ func TestPodSpec_Resources(t *testing.T) {
 }
 
 func TestPodSpec_Port(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	c := pod.Spec.Containers[0]
@@ -108,7 +108,7 @@ func TestPodSpec_Port(t *testing.T) {
 }
 
 func TestPodSpec_Namespace(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "kube-system", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "kube-system", "", nil)
 	pod := r.podSpec()
 
 	if pod.Namespace != "kube-system" {
@@ -117,7 +117,7 @@ func TestPodSpec_Namespace(t *testing.T) {
 }
 
 func TestNewRelay_PodNamePrefix(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	if r.podName == "" {
 		t.Error("expected non-empty pod name")
 	}
@@ -129,7 +129,7 @@ func TestNewRelay_PodNamePrefix(t *testing.T) {
 
 func TestClose_Idempotent(t *testing.T) {
 	cs := fake.NewClientset()
-	r := NewRelay(cs, &rest.Config{}, "default", "")
+	r := NewRelay(cs, &rest.Config{}, "default", "", nil)
 
 	// Close without Start — should not panic
 	if err := r.Close(); err != nil {
@@ -141,7 +141,7 @@ func TestClose_Idempotent(t *testing.T) {
 }
 
 func TestPodSpec_CustomImage(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "my-registry.io/socks5:v1.2.3")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "my-registry.io/socks5:v1.2.3", nil)
 	pod := r.podSpec()
 
 	if pod.Spec.Containers[0].Image != "my-registry.io/socks5:v1.2.3" {
@@ -153,7 +153,7 @@ func TestPodSpec_CustomImage(t *testing.T) {
 }
 
 func TestPodSpec_LatestImagePullPolicy(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	pod := r.podSpec()
 
 	if pod.Spec.Containers[0].ImagePullPolicy != corev1.PullAlways {
@@ -238,8 +238,28 @@ func TestIsImagePullFailure(t *testing.T) {
 	}
 }
 
+func TestPodSpec_CustomCommand(t *testing.T) {
+	cmd := []string{"microsocks", "-p", "1080"}
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "netshoot:latest", cmd)
+	pod := r.podSpec()
+
+	c := pod.Spec.Containers[0]
+	if len(c.Command) != 3 || c.Command[0] != "microsocks" {
+		t.Errorf("expected command %v, got %v", cmd, c.Command)
+	}
+}
+
+func TestPodSpec_NoCommandByDefault(t *testing.T) {
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
+	pod := r.podSpec()
+
+	if pod.Spec.Containers[0].Command != nil {
+		t.Errorf("expected nil command for default image, got %v", pod.Spec.Containers[0].Command)
+	}
+}
+
 func TestProbeFn_ReturnsFunction(t *testing.T) {
-	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "")
+	r := NewRelay(fake.NewClientset(), &rest.Config{}, "default", "", nil)
 	fn := r.ProbeFn()
 	if fn == nil {
 		t.Fatal("expected non-nil ProbeFn")
