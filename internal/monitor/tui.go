@@ -284,7 +284,7 @@ func (m *Model) footerView() string {
 }
 
 func (m *Model) tableHeight() int {
-	// header(2) + gap(1) + table-chrome(2) + gap(1) + separator(1) + gap(1) + detail(~4) + gap(1) + footer(1) = 14
+	// Reserve space for header, table chrome, separator, detail panel, and footer.
 	reserved := 14
 	h := m.height - reserved
 	if h < 3 {
