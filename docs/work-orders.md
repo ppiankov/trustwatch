@@ -401,6 +401,56 @@ Not every team can get ClusterRole. trustwatch should degrade gracefully to what
 
 ---
 
+### WO-T25: cert-manager Certificate CR discovery
+
+**Goal**: Discover certificate expiry from cert-manager `Certificate` resources without needing the TLS Secret.
+
+Most clusters use cert-manager. Currently trustwatch only sees the resulting TLS Secret (WO-T04), missing cert-manager metadata: issuer reference, renewal time, ready condition, failure reasons.
+
+**Discovery targets**:
+- `Certificate` objects (`cert-manager.io/v1`) — read `status.notAfter`, `status.renewalTime`, `status.conditions`
+- Link to issuer (`spec.issuerRef`) for context
+- If `status.conditions` show `Ready=False`, escalate severity
+
+**Behavior**:
+- Gracefully skip if cert-manager CRDs not installed (check API discovery first)
+- Deduplicate against Secret findings — if both Certificate and its Secret are found, prefer Certificate (richer metadata), suppress the Secret finding
+- Report issuer name in finding metadata
+
+**Files**:
+- `internal/discovery/certmanager.go`
+- `internal/discovery/certmanager_test.go`
+
+**RBAC**: list/watch on `cert-manager.io` certificates (add to ClusterRole in Helm chart).
+
+**Verification**: `make test` passes, gracefully skips on clusters without cert-manager.
+
+---
+
+### WO-T26: Finding deduplication
+
+**Goal**: Same certificate referenced by multiple sources (Ingress + Secret + Gateway) appears as one finding with multiple sources listed.
+
+Currently the same cert can appear 3 times in output — once per discoverer that found it. This is noise, not signal.
+
+**Deduplication key**: SHA256 fingerprint of the leaf certificate.
+
+**Behavior**:
+- After all discoverers complete, group findings by cert fingerprint
+- Merge into single finding with `sources: ["ingress/default/my-app", "secret/default/my-app-tls", "gateway/default/my-gw"]`
+- Use highest severity from any source
+- Keep earliest expiry (should be identical, but defensive)
+- `--no-dedup` flag to disable (useful for debugging)
+
+**Files**:
+- `internal/discovery/dedup.go`
+- `internal/discovery/dedup_test.go`
+- `internal/discovery/orchestrator.go` — call dedup after collection
+
+**Verification**: `make test` passes, finding count drops when same cert appears via multiple paths.
+
+---
+
 ## Execution Order
 
 ```
@@ -419,4 +469,4 @@ WO-T10 → WO-T11 + WO-T12 + WO-T13       (aggregation + output)
 
 Critical path: T01 → T02 → T10 → T11 → T14 (minimum viable `now` + `serve`).
 
-Next priorities: T21 (JSON output) → T22 (Gateway API) → T23 (namespace RBAC) → T24 (Grafana dashboard).
+Next priorities: T25 (cert-manager) → T26 (dedup) → T17 (rules command).
