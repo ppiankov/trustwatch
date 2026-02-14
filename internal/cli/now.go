@@ -15,6 +15,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
+	gatewayclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
@@ -141,6 +142,11 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating aggregator client: %w", err)
 	}
 
+	gwClient, err := gatewayclient.NewForConfig(restCfg)
+	if err != nil {
+		return fmt.Errorf("creating gateway-api client: %w", err)
+	}
+
 	// Resolve context name for display
 	if kubeCtx == "" {
 		raw, rawErr := clientConfig.RawConfig()
@@ -200,6 +206,7 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		discovery.NewLinkerdDiscoverer(clientset),
 		discovery.NewIstioDiscoverer(clientset),
 		discovery.NewAnnotationDiscoverer(clientset, annotOpts...),
+		discovery.NewGatewayDiscoverer(gwClient, clientset),
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External, extOpts...))
