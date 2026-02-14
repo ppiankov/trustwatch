@@ -1,0 +1,55 @@
+{{- if .Values.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "trustwatch.fullname" . }}
+  labels:
+    {{- include "trustwatch.labels" . | nindent 4 }}
+    {{- range $key, $value := .Values.prometheusRule.labels }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+spec:
+  groups:
+    - name: trustwatch.rules
+      rules:
+        - alert: TrustwatchCertExpiringSoon
+          expr: trustwatch_cert_expires_in_seconds < {{ .Values.prometheusRule.warnSeconds }} and trustwatch_cert_expires_in_seconds > {{ .Values.prometheusRule.critSeconds }}
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Certificate expiring soon: {{`{{ $labels.name }}`}} in {{`{{ $labels.namespace }}`}}"
+            description: "Certificate {{`{{ $labels.name }}`}} (source: {{`{{ $labels.source }}`}}) in namespace {{`{{ $labels.namespace }}`}} expires in less than {{ .Values.prometheusRule.warnSeconds }}s."
+        - alert: TrustwatchCertExpiryCritical
+          expr: trustwatch_cert_expires_in_seconds < {{ .Values.prometheusRule.critSeconds }} and trustwatch_cert_expires_in_seconds > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate expiry critical: {{`{{ $labels.name }}`}} in {{`{{ $labels.namespace }}`}}"
+            description: "Certificate {{`{{ $labels.name }}`}} (source: {{`{{ $labels.source }}`}}) in namespace {{`{{ $labels.namespace }}`}} expires in less than {{ .Values.prometheusRule.critSeconds }}s."
+        - alert: TrustwatchCertExpired
+          expr: trustwatch_cert_expires_in_seconds <= 0
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Certificate expired: {{`{{ $labels.name }}`}} in {{`{{ $labels.namespace }}`}}"
+            description: "Certificate {{`{{ $labels.name }}`}} (source: {{`{{ $labels.source }}`}}) in namespace {{`{{ $labels.namespace }}`}} has expired."
+        - alert: TrustwatchProbeFailed
+          expr: trustwatch_probe_success == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "TLS probe failed: {{`{{ $labels.name }}`}} in {{`{{ $labels.namespace }}`}}"
+            description: "TLS probe for {{`{{ $labels.name }}`}} (source: {{`{{ $labels.source }}`}}) in namespace {{`{{ $labels.namespace }}`}} has been failing for 10 minutes."
+        - alert: TrustwatchDiscoveryErrors
+          expr: increase(trustwatch_discovery_errors_total[5m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Discovery errors from source: {{`{{ $labels.source }}`}}"
+            description: "trustwatch discoverer {{`{{ $labels.source }}`}} has been producing errors for 15 minutes."
+{{- end }}

@@ -27,6 +27,9 @@ func TestRootCommand_Help(t *testing.T) {
 	if !strings.Contains(out, "now") {
 		t.Error("expected 'now' subcommand in help output")
 	}
+	if !strings.Contains(out, "rules") {
+		t.Error("expected 'rules' subcommand in help output")
+	}
 }
 
 func TestVersionCommand(t *testing.T) {
