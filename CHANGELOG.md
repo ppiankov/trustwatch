@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Functional options (`WithProbeFn`) on all probing discoverers (webhooks, apiservices, annotations, externals)
 
 ### Fixed
+- APIService with `insecureSkipTLSVerify: true` no longer reported as critical — downgraded to info with note
+- TUI now shows a separator line between the findings table and the detail panel
 - Relay pod now reports container-level failure reasons (ErrImagePull, ImagePullBackOff, OOMKilled) instead of generic timeout
 - Early bail on permanent image pull failures instead of waiting for full timeout
 

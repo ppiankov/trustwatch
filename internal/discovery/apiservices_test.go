@@ -223,6 +223,45 @@ func TestAPIServiceDiscoverer_Multiple(t *testing.T) {
 	}
 }
 
+func TestAPIServiceDiscoverer_InsecureSkipTLSVerify(t *testing.T) {
+	port := int32(443)
+	as := &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{Name: "v1beta1.metrics.k8s.io"},
+		Spec: apiregistrationv1.APIServiceSpec{
+			InsecureSkipTLSVerify: true,
+			Service: &apiregistrationv1.ServiceReference{
+				Name: "metrics-server", Namespace: "kube-system", Port: &port,
+			},
+		},
+	}
+
+	client := newFakeAggregatorClient(as)
+	d := NewAPIServiceDiscoverer(client)
+	d.probeFn = func(_ string) probe.Result {
+		t.Fatal("probeFn should not be called for insecureSkipTLSVerify APIServices")
+		return probe.Result{}
+	}
+
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+
+	f := findings[0]
+	if f.Severity != store.SeverityInfo {
+		t.Errorf("expected severity %q, got %q", store.SeverityInfo, f.Severity)
+	}
+	if f.Notes != "insecureSkipTLSVerify=true" {
+		t.Errorf("expected notes %q, got %q", "insecureSkipTLSVerify=true", f.Notes)
+	}
+	if f.Target != "metrics-server.kube-system.svc:443" {
+		t.Errorf("expected target %q, got %q", "metrics-server.kube-system.svc:443", f.Target)
+	}
+}
+
 func TestAPIServiceDiscoverer_ProbeFailure(t *testing.T) {
 	port := int32(443)
 	as := &apiregistrationv1.APIService{

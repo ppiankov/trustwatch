@@ -19,8 +19,9 @@ var (
 	warnStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")) // yellow
 	dimStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))  // dim gray
 
-	headerStyle = lipgloss.NewStyle().Bold(true).Padding(0, 1)
-	detailStyle = lipgloss.NewStyle().Padding(0, 1)
+	headerStyle    = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	detailStyle    = lipgloss.NewStyle().Padding(0, 1)
+	separatorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 )
 
 // Model is the BubbleTea model for the now TUI.
@@ -113,6 +114,8 @@ func (m *Model) View() string {
 	b.WriteString(m.headerView())
 	b.WriteByte('\n')
 	b.WriteString(m.table.View())
+	b.WriteByte('\n')
+	b.WriteString(separatorStyle.Render(strings.Repeat("─", m.width)))
 	b.WriteByte('\n')
 	b.WriteString(m.detailView())
 	b.WriteByte('\n')
