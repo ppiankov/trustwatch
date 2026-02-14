@@ -104,6 +104,7 @@ func (d *APIServiceDiscoverer) Discover() ([]store.CertFinding, error) {
 			finding.Issuer = result.Cert.Issuer.String()
 			finding.Subject = result.Cert.Subject.String()
 			finding.Serial = result.Cert.SerialNumber.String()
+			applyProbeChainValidation(&finding, result.Chain, extractHostFromTarget(target))
 		}
 
 		findings = append(findings, finding)

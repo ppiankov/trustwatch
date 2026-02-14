@@ -112,5 +112,10 @@ func (o *Orchestrator) classifyFindings(findings []store.CertFinding, now time.T
 		if f.Source == store.SourceWebhook && f.Notes == notesFailPolicyIgnore && f.Severity == store.SeverityCritical {
 			f.Severity = store.SeverityWarn
 		}
+
+		// Chain errors escalate info to warn (structural trust issue)
+		if len(f.ChainErrors) > 0 && f.Severity == store.SeverityInfo {
+			f.Severity = store.SeverityWarn
+		}
 	}
 }

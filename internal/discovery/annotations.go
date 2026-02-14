@@ -152,6 +152,7 @@ func (d *AnnotationDiscoverer) probeTarget(target, sni, namespace, name string, 
 		finding.Issuer = result.Cert.Issuer.String()
 		finding.Subject = result.Cert.Subject.String()
 		finding.Serial = result.Cert.SerialNumber.String()
+		applyProbeChainValidation(&finding, result.Chain, extractHostFromTarget(target))
 	}
 
 	return finding
@@ -186,10 +187,8 @@ func (d *AnnotationDiscoverer) findingFromSecret(ctx context.Context, namespace,
 		return finding
 	}
 
-	cert, err := parsePEMCert(pemData)
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(&finding, pemData, "")
+	if cert == nil {
 		return finding
 	}
 

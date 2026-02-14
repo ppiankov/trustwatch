@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/ppiankov/trustwatch/internal/store"
@@ -57,14 +58,15 @@ func UIHandler(getSnapshot SnapshotFunc) http.HandlerFunc {
 				warnCount++
 			}
 			rows = append(rows, findingRow{
-				Severity:  string(f.Severity),
-				SevClass:  string(f.Severity),
-				Source:    string(f.Source),
-				Where:     formatWhere(f),
-				ExpiresIn: formatExpiresIn(f.NotAfter, now),
-				NotAfter:  formatNotAfter(f.NotAfter),
-				Risk:      f.Notes,
-				Error:     f.ProbeErr,
+				Severity:    string(f.Severity),
+				SevClass:    string(f.Severity),
+				Source:      string(f.Source),
+				Where:       formatWhere(f),
+				ExpiresIn:   formatExpiresIn(f.NotAfter, now),
+				NotAfter:    formatNotAfter(f.NotAfter),
+				Risk:        f.Notes,
+				ChainErrors: strings.Join(f.ChainErrors, "; "),
+				Error:       f.ProbeErr,
 			})
 		}
 
@@ -124,14 +126,15 @@ type pageData struct {
 }
 
 type findingRow struct {
-	Severity  string
-	SevClass  string
-	Source    string
-	Where     string
-	ExpiresIn string
-	NotAfter  string
-	Risk      string
-	Error     string
+	Severity    string
+	SevClass    string
+	Source      string
+	Where       string
+	ExpiresIn   string
+	NotAfter    string
+	Risk        string
+	ChainErrors string
+	Error       string
 }
 
 func sevOrder(s store.Severity) int {

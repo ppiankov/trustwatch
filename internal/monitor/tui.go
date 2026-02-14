@@ -267,6 +267,9 @@ func (m *Model) detailView() string {
 	if f.Notes != "" {
 		lines = append(lines, fmt.Sprintf("Risk: %s", f.Notes))
 	}
+	if len(f.ChainErrors) > 0 {
+		lines = append(lines, fmt.Sprintf("Chain: %s", warnStyle.Render(strings.Join(f.ChainErrors, "; "))))
+	}
 	if f.ProbeErr != "" {
 		lines = append(lines, fmt.Sprintf("Error: %s", critStyle.Render(f.ProbeErr)))
 	}
@@ -306,7 +309,7 @@ func (m *Model) applyFilter() {
 		var filtered []store.CertFinding
 		for i := range m.allFindings {
 			f := &m.allFindings[i]
-			hay := strings.ToLower(f.Name + " " + f.Namespace + " " + string(f.Source) + " " + f.Target + " " + f.ProbeErr)
+			hay := strings.ToLower(f.Name + " " + f.Namespace + " " + string(f.Source) + " " + f.Target + " " + f.ProbeErr + " " + strings.Join(f.ChainErrors, " "))
 			if strings.Contains(hay, query) {
 				filtered = append(filtered, m.allFindings[i])
 			}

@@ -2,8 +2,6 @@ package discovery
 
 import (
 	"context"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -74,10 +72,8 @@ func (d *SecretDiscoverer) Discover() ([]store.CertFinding, error) {
 				continue
 			}
 
-			cert, err := parsePEMCert(pemData)
-			if err != nil {
-				finding.ProbeOK = false
-				finding.ProbeErr = err.Error()
+			cert := applyPEMChainValidation(&finding, pemData, "")
+			if cert == nil {
 				findings = append(findings, finding)
 				continue
 			}
@@ -93,13 +89,4 @@ func (d *SecretDiscoverer) Discover() ([]store.CertFinding, error) {
 	}
 
 	return findings, nil
-}
-
-// parsePEMCert decodes the first PEM block and parses it as an X.509 certificate.
-func parsePEMCert(data []byte) (*x509.Certificate, error) {
-	block, _ := pem.Decode(data)
-	if block == nil {
-		return nil, fmt.Errorf("no PEM block found")
-	}
-	return x509.ParseCertificate(block.Bytes)
 }

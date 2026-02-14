@@ -149,10 +149,8 @@ func (d *CertManagerDiscoverer) populateFromSecret(ctx context.Context, f *store
 		return *f
 	}
 
-	cert, err := parsePEMCert(pemData)
-	if err != nil {
-		f.ProbeOK = false
-		f.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(f, pemData, "")
+	if cert == nil {
 		return *f
 	}
 
