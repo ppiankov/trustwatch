@@ -27,7 +27,7 @@ docker pull ghcr.io/ppiankov/trustwatch:latest
 
 # Or build locally
 make docker-build IMAGE=my-registry.io/trustwatch
-docker push my-registry.io/trustwatch:v0.1.2
+docker push my-registry.io/trustwatch:v0.1.3
 ```
 
 Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on each release. The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
@@ -70,6 +70,7 @@ Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on 
 | API aggregation | `APIService` backends | Expiry breaks APIs |
 | Linkerd | Trust roots + issuer Secret | Expiry breaks mesh identity |
 | Istio | CA/root/intermediate materials | Expiry breaks mesh identity |
+| Gateway API | `Gateway` listener TLS certificate refs | Expiry breaks gateway routing |
 
 ### Opt-In (annotation-driven)
 
@@ -112,6 +113,29 @@ Run from your laptop. Discovers trust surfaces, probes endpoints, displays probl
 ```bash
 trustwatch now --context prod --warn-before 720h --crit-before 336h
 ```
+
+#### Output formats
+
+By default, `now` shows a TUI when stdout is a terminal and a plain table when piped. Use `--output` to force a specific format, or `--quiet` for CI gates that only need the exit code:
+
+```bash
+# JSON output for automation
+trustwatch now -o json
+
+# Force table output even in a terminal
+trustwatch now -o table
+
+# CI gate: exit code only, no output
+trustwatch now --quiet && echo "All certs OK"
+
+# JSON piped to jq
+trustwatch now -o json | jq '.snapshot.findings[] | select(.severity == "critical")'
+```
+
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--output` | `-o` | _(auto)_ | Output format: `json`, `table` (default: TUI if TTY, table if piped) |
+| `--quiet` | `-q` | `false` | Suppress all output, exit code only |
 
 #### `--tunnel`: In-cluster DNS resolution
 
@@ -157,7 +181,7 @@ trustwatch includes a built-in SOCKS5 server. If the trustwatch image is already
 
 ```bash
 trustwatch now --tunnel \
-  --tunnel-image my-registry.io/trustwatch:v0.1.2 \
+  --tunnel-image my-registry.io/trustwatch:v0.1.3 \
   --tunnel-command /trustwatch,socks5
 ```
 
@@ -198,6 +222,14 @@ Enable Prometheus ServiceMonitor:
 helm install trustwatch charts/trustwatch \
   --namespace trustwatch --create-namespace \
   --set serviceMonitor.enabled=true
+```
+
+Enable Grafana dashboard (auto-imported via sidecar):
+
+```bash
+helm install trustwatch charts/trustwatch \
+  --namespace trustwatch --create-namespace \
+  --set grafanaDashboard.enabled=true
 ```
 
 Exposes web UI, Prometheus metrics, and JSON API.
@@ -244,6 +276,7 @@ trustwatch
 │   ├── Ingress TLS refs
 │   ├── Linkerd identity (trust roots + issuer)
 │   ├── Istio CA materials
+│   ├── Gateway API TLS refs
 │   └── Annotations (trustwatch.dev/*)
 ├── Probing (TLS handshake)
 │   ├── In-cluster endpoints
@@ -275,6 +308,10 @@ trustwatch needs **read-only** cluster-wide access. The Helm chart creates a Clu
 | `apiregistration.k8s.io` | apiservices | list, watch |
 | `apps` | deployments | list, watch |
 | `networking.k8s.io` | ingresses | list, watch |
+| `gateway.networking.k8s.io` | gateways | list, watch |
+| `authorization.k8s.io` | selfsubjectaccessreviews | create |
+
+When `--namespace` is used, trustwatch probes its own permissions via `SelfSubjectAccessReview` and silently skips namespaces where it lacks access. This allows namespace-scoped RBAC without 403 errors in the output.
 
 ### Secret Access
 
@@ -302,8 +339,8 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - Does not detect certs served via Envoy SDS that aren't backed by Kubernetes Secrets
 - Cannot probe endpoints blocked by NetworkPolicy from trustwatch's namespace
 - Mesh leaf/workload certs (24h default) are intentionally ignored to avoid noise
-- No CRD support yet — annotations and ConfigMap only (CRD on roadmap)
-- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services
+- No TrustPolicy CRD yet — annotations and ConfigMap only (CRD on roadmap)
+- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services, gateways
 - `--tunnel` mode may log `connection reset by peer` errors from the Kubernetes port-forward layer — these are cosmetic and caused by unreachable probe targets closing the SOCKS5 connection; probe results are unaffected
 
 ## Roadmap
@@ -320,6 +357,10 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - [x] `--tunnel` SOCKS5 relay for laptop-to-cluster probing
 - [x] Helm chart
 - [x] Structured logging (`--log-level`, `--log-format`)
+- [x] JSON/table output formats (`--output json|table`, `--quiet`)
+- [x] Gateway API TLS discovery
+- [x] Namespace-scoped RBAC with access probing
+- [x] Grafana dashboard (Helm chart)
 - [ ] `rules` command (generate PrometheusRule YAML)
 - [ ] cert-manager Certificate CR awareness
 - [ ] TrustPolicy CRD (future)
