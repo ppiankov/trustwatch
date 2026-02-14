@@ -24,31 +24,31 @@ type Collector struct {
 func NewCollector(reg prometheus.Registerer) *Collector {
 	c := &Collector{
 		certNotAfter: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "certwatch",
+			Namespace: "trustwatch",
 			Name:      "cert_not_after_timestamp",
 			Help:      "Unix timestamp of certificate notAfter.",
 		}, []string{"source", "namespace", "name", "severity"}),
 
 		certExpiresIn: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "certwatch",
+			Namespace: "trustwatch",
 			Name:      "cert_expires_in_seconds",
 			Help:      "Seconds until certificate expires (negative if expired).",
 		}, []string{"source", "namespace", "name", "severity"}),
 
 		probeSuccess: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "certwatch",
+			Namespace: "trustwatch",
 			Name:      "probe_success",
 			Help:      "Whether the TLS probe succeeded (1=ok, 0=failed).",
 		}, []string{"source", "namespace", "name"}),
 
 		scanDuration: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "certwatch",
+			Namespace: "trustwatch",
 			Name:      "scan_duration_seconds",
 			Help:      "Duration of the last discovery scan in seconds.",
 		}),
 
 		findingsTotal: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: "certwatch",
+			Namespace: "trustwatch",
 			Name:      "findings_total",
 			Help:      "Total number of findings by severity.",
 		}, []string{"severity"}),

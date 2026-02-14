@@ -100,5 +100,11 @@ func (o *Orchestrator) classifyFindings(findings []store.CertFinding, now time.T
 		default:
 			// Healthy — keep original severity (discoverers may set info or critical for structural reasons)
 		}
+
+		// Cap failurePolicy=Ignore webhooks at warn — cert expiry on these
+		// won't break deployments since the API server skips the webhook on failure.
+		if f.Source == store.SourceWebhook && f.Notes == "failurePolicy=Ignore" && f.Severity == store.SeverityCritical {
+			f.Severity = store.SeverityWarn
+		}
 	}
 }

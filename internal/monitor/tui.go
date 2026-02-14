@@ -244,6 +244,11 @@ func (m *Model) detailView() string {
 	f := &m.findings[idx]
 	var lines []string
 
+	if !f.NotAfter.IsZero() {
+		expires := f.NotAfter.UTC().Format("2006-01-02 15:04 UTC")
+		remaining := FormatExpiresIn(f.NotAfter, m.snap.At)
+		lines = append(lines, fmt.Sprintf("Expires: %s (%s)", expires, remaining))
+	}
 	if len(f.DNSNames) > 0 {
 		lines = append(lines, fmt.Sprintf("SANs: %s", strings.Join(f.DNSNames, ", ")))
 	}
@@ -260,7 +265,7 @@ func (m *Model) detailView() string {
 		lines = append(lines, fmt.Sprintf("SNI: %s", f.SNI))
 	}
 	if f.Notes != "" {
-		lines = append(lines, fmt.Sprintf("Notes: %s", f.Notes))
+		lines = append(lines, fmt.Sprintf("Risk: %s", f.Notes))
 	}
 	if f.ProbeErr != "" {
 		lines = append(lines, fmt.Sprintf("Error: %s", critStyle.Render(f.ProbeErr)))
