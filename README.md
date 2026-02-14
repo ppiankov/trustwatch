@@ -206,7 +206,7 @@ Exposes web UI, Prometheus metrics, and JSON API.
 |----------|---------|
 | `/` | Problems web UI |
 | `/metrics` | Prometheus scrape |
-| `/healthz` | Liveness probe |
+| `/healthz` | Liveness/readiness (503 if no scan or stale) |
 | `/api/v1/snapshot` | JSON findings |
 
 ### Prometheus Metrics
@@ -217,6 +217,7 @@ trustwatch_cert_expires_in_seconds{source, namespace, name, severity}
 trustwatch_probe_success{source, namespace, name}
 trustwatch_scan_duration_seconds
 trustwatch_findings_total{severity}
+trustwatch_discovery_errors_total{source}
 ```
 
 ## Configuration
@@ -318,7 +319,7 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - [x] External targets from config
 - [x] `--tunnel` SOCKS5 relay for laptop-to-cluster probing
 - [x] Helm chart
-- [ ] `--quiet` / `--verbose` log level control
+- [x] Structured logging (`--log-level`, `--log-format`)
 - [ ] `rules` command (generate PrometheusRule YAML)
 - [ ] cert-manager Certificate CR awareness
 - [ ] TrustPolicy CRD (future)
