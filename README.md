@@ -27,7 +27,7 @@ docker pull ghcr.io/ppiankov/trustwatch:latest
 
 # Or build locally
 make docker-build IMAGE=my-registry.io/trustwatch
-docker push my-registry.io/trustwatch:v0.1.4
+docker push my-registry.io/trustwatch:v0.1.5
 ```
 
 Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on each release. The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
@@ -204,7 +204,7 @@ trustwatch includes a built-in SOCKS5 server. If the trustwatch image is already
 
 ```bash
 trustwatch now --tunnel \
-  --tunnel-image my-registry.io/trustwatch:v0.1.4 \
+  --tunnel-image my-registry.io/trustwatch:v0.1.5 \
   --tunnel-command /trustwatch,socks5
 ```
 

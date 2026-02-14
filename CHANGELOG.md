@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-02-15
+
+### Added
+- Certificate chain validation: detects broken chains, wrong SANs, self-signed leaves, misordered PEM bundles, expired intermediates
+- `ChainErrors` and `ChainLen` fields on findings (JSON API, TUI detail panel, web UI table)
+- `trustwatch_chain_errors_total{source}` Prometheus metric
+- Cosign keyless signing of container images and binary checksums (Sigstore OIDC)
+- SBOM generation (SPDX-JSON) and attestation on container images
+
 ## [0.1.4] - 2026-02-14
 
 ### Added
