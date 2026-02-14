@@ -14,15 +14,30 @@ type ExternalTarget struct {
 	URL string `yaml:"url"` // https://host:port or tcp://host:port?sni=name
 }
 
+// WebhookConfig describes a notification webhook endpoint.
+type WebhookConfig struct {
+	URL  string `yaml:"url"`
+	Type string `yaml:"type"` // "slack" or "generic"
+}
+
+// NotificationConfig controls how notifications are sent.
+type NotificationConfig struct {
+	Webhooks   []WebhookConfig `yaml:"webhooks"`
+	Severities []string        `yaml:"severities"`
+	Cooldown   time.Duration   `yaml:"cooldown"`
+	Enabled    bool            `yaml:"enabled"`
+}
+
 // Config holds trustwatch runtime configuration.
 type Config struct {
-	ListenAddr   string           `yaml:"listenAddr"`
-	MetricsPath  string           `yaml:"metricsPath"`
-	Namespaces   []string         `yaml:"namespaces"`
-	External     []ExternalTarget `yaml:"external"`
-	RefreshEvery time.Duration    `yaml:"refreshEvery"`
-	WarnBefore   time.Duration    `yaml:"warnBefore"`
-	CritBefore   time.Duration    `yaml:"critBefore"`
+	ListenAddr    string             `yaml:"listenAddr"`
+	MetricsPath   string             `yaml:"metricsPath"`
+	Namespaces    []string           `yaml:"namespaces"`
+	External      []ExternalTarget   `yaml:"external"`
+	Notifications NotificationConfig `yaml:"notifications"`
+	RefreshEvery  time.Duration      `yaml:"refreshEvery"`
+	WarnBefore    time.Duration      `yaml:"warnBefore"`
+	CritBefore    time.Duration      `yaml:"critBefore"`
 }
 
 // Defaults returns a Config with sane defaults.

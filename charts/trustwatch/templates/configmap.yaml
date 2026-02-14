@@ -20,3 +20,7 @@ data:
     external:
       {{- toYaml .Values.config.external | nindent 6 }}
     {{- end }}
+    {{- if .Values.config.notifications.enabled }}
+    notifications:
+      {{- toYaml .Values.config.notifications | nindent 6 }}
+    {{- end }}
