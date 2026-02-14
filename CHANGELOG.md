@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [0.1.1] - 2026-02-13
 
 ### Added
+- TUI search: press `/` to filter findings by name, namespace, source, or target
+- TUI navigation: `g`/`G` for top/bottom, `1`-`9` for row jump, `j`/`k` for vim-style movement
+- TUI header shows `Showing: N/M` when search filter is active
 - `--tunnel` flag for `now` mode: deploys a temporary SOCKS5 relay pod inside the cluster so probes can resolve in-cluster DNS from a laptop
 - `--tunnel-ns` flag to control which namespace the relay pod is created in (default: `default`)
 - `--tunnel-image` flag to override the SOCKS5 proxy image (default: `serjs/go-socks5-proxy:latest`)
@@ -24,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 - APIService with `insecureSkipTLSVerify: true` no longer reported as critical — downgraded to info with note
 - TUI now shows a separator line between the findings table and the detail panel
+- TUI color bleeding: removed ANSI from table cells that caused truncated escape sequences to bleed red across rows
 - Relay pod now reports container-level failure reasons (ErrImagePull, ImagePullBackOff, OOMKilled) instead of generic timeout
 - Early bail on permanent image pull failures instead of waiting for full timeout
 

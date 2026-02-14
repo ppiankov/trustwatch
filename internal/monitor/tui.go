@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
@@ -26,13 +27,16 @@ var (
 
 // Model is the BubbleTea model for the now TUI.
 type Model struct {
-	context  string
-	snap     store.Snapshot
-	findings []store.CertFinding
-	table    table.Model
-	width    int
-	height   int
-	quitting bool
+	context     string
+	snap        store.Snapshot
+	allFindings []store.CertFinding // full sorted set
+	findings    []store.CertFinding // current view (may be filtered)
+	table       table.Model
+	width       int
+	height      int
+	quitting    bool
+	searching   bool
+	searchInput textinput.Model
 }
 
 // NewModel creates a TUI model from a completed snapshot.
@@ -68,13 +72,19 @@ func NewModel(snap store.Snapshot, kubeContext string) *Model {
 		table.WithStyles(s),
 	)
 
+	ti := textinput.New()
+	ti.Placeholder = "type to filter..."
+	ti.CharLimit = 64
+
 	return &Model{
-		snap:     snap,
-		table:    t,
-		findings: findings,
-		context:  kubeContext,
-		width:    80,
-		height:   24,
+		snap:        snap,
+		table:       t,
+		allFindings: findings,
+		findings:    findings,
+		context:     kubeContext,
+		width:       80,
+		height:      24,
+		searchInput: ti,
 	}
 }
 
@@ -85,10 +95,67 @@ func (m *Model) Init() tea.Cmd {
 
 // Update handles key events.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.searching {
+		return m.updateSearch(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "esc", "ctrl+c":
+		case "q", "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+		case "esc":
+			if m.searchInput.Value() != "" {
+				m.searchInput.SetValue("")
+				m.applyFilter()
+				return m, nil
+			}
+			m.quitting = true
+			return m, tea.Quit
+		case "/":
+			m.searching = true
+			return m, m.searchInput.Focus()
+		case "g":
+			m.table.GotoTop()
+			return m, nil
+		case "G":
+			m.table.GotoBottom()
+			return m, nil
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			n := int(msg.String()[0] - '0')
+			if n <= len(m.findings) {
+				m.table.SetCursor(n - 1)
+			}
+			return m, nil
+		}
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.table.SetHeight(m.tableHeight())
+		m.table.SetWidth(m.width)
+	}
+
+	var cmd tea.Cmd
+	m.table, cmd = m.table.Update(msg)
+	return m, cmd
+}
+
+func (m *Model) updateSearch(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter":
+			m.searching = false
+			m.searchInput.Blur()
+			return m, nil
+		case "esc":
+			m.searching = false
+			m.searchInput.SetValue("")
+			m.searchInput.Blur()
+			m.applyFilter()
+			return m, nil
+		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
 		}
@@ -100,7 +167,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	m.table, cmd = m.table.Update(msg)
+	m.searchInput, cmd = m.searchInput.Update(msg)
+	m.applyFilter()
 	return m, cmd
 }
 
@@ -144,12 +212,17 @@ func (m *Model) headerView() string {
 	title := headerStyle.Render(fmt.Sprintf("trustwatch · %s · %s",
 		ctx, m.snap.At.UTC().Format("2006-01-02 15:04 UTC")))
 
+	totalStr := fmt.Sprintf("Total: %d", len(m.findings))
+	if len(m.findings) != len(m.allFindings) {
+		totalStr = fmt.Sprintf("Showing: %d/%d", len(m.findings), len(m.allFindings))
+	}
+
 	counts := headerStyle.Render(fmt.Sprintf(
-		"%s  %s  %s  Total: %d",
+		"%s  %s  %s  %s",
 		critStyle.Render(fmt.Sprintf("Critical: %d", crit)),
 		warnStyle.Render(fmt.Sprintf("Warn: %d", warn)),
 		fmt.Sprintf("Info: %d", info),
-		len(m.findings),
+		totalStr,
 	))
 
 	return title + "\n" + counts
@@ -157,6 +230,9 @@ func (m *Model) headerView() string {
 
 func (m *Model) detailView() string {
 	if len(m.findings) == 0 {
+		if m.searchInput.Value() != "" {
+			return detailStyle.Render(dimStyle.Render("No matches."))
+		}
 		return detailStyle.Render("No findings.")
 	}
 
@@ -197,17 +273,50 @@ func (m *Model) detailView() string {
 }
 
 func (m *Model) footerView() string {
-	return dimStyle.Render(" q/esc quit · ↑↓ navigate")
+	if m.searching {
+		return " /" + m.searchInput.View()
+	}
+	help := " q quit · ↑↓/jk navigate · g/G top/bottom · 1-9 jump · / search"
+	if m.searchInput.Value() != "" {
+		help += " · esc clear"
+	}
+	return dimStyle.Render(help)
 }
 
 func (m *Model) tableHeight() int {
-	// header=3, detail=6, footer=1, padding=2
-	reserved := 12
+	// header(2) + gap(1) + table-chrome(2) + gap(1) + separator(1) + gap(1) + detail(~4) + gap(1) + footer(1) = 14
+	reserved := 14
 	h := m.height - reserved
 	if h < 3 {
 		h = 3
 	}
 	return h
+}
+
+func (m *Model) applyFilter() {
+	query := strings.ToLower(m.searchInput.Value())
+	if query == "" {
+		m.findings = m.allFindings
+	} else {
+		var filtered []store.CertFinding
+		for i := range m.allFindings {
+			f := &m.allFindings[i]
+			hay := strings.ToLower(f.Name + " " + f.Namespace + " " + string(f.Source) + " " + f.Target + " " + f.ProbeErr)
+			if strings.Contains(hay, query) {
+				filtered = append(filtered, m.allFindings[i])
+			}
+		}
+		m.findings = filtered
+	}
+	m.rebuildRows()
+}
+
+func (m *Model) rebuildRows() {
+	rows := make([]table.Row, len(m.findings))
+	for i := range m.findings {
+		rows[i] = findingToRow(&m.findings[i], m.snap.At)
+	}
+	m.table.SetRows(rows)
 }
 
 // PlainText returns a non-interactive text representation for piped output.
@@ -227,13 +336,16 @@ func PlainText(snap store.Snapshot) string {
 	return b.String()
 }
 
+// findingToRow converts a finding to a table row with plain text (no ANSI).
+// Embedding ANSI in cells causes the table to miscalculate column widths
+// and truncate escape sequences, bleeding color into adjacent cells/rows.
 func findingToRow(f *store.CertFinding, now time.Time) table.Row {
 	var sev string
 	switch f.Severity {
 	case store.SeverityCritical:
-		sev = critStyle.Render("CRIT")
+		sev = "CRIT"
 	case store.SeverityWarn:
-		sev = warnStyle.Render("WARN")
+		sev = "WARN"
 	default:
 		sev = "INFO"
 	}
@@ -256,11 +368,11 @@ func findingToRow(f *store.CertFinding, now time.Time) table.Row {
 	return table.Row{sev, string(f.Source), where, expires, probeErr}
 }
 
-// FormatExpiresIn returns a human-readable relative time.
+// FormatExpiresIn returns a human-readable relative time (plain text).
 func FormatExpiresIn(notAfter, now time.Time) string {
 	d := notAfter.Sub(now)
 	if d < 0 {
-		return critStyle.Render("EXPIRED")
+		return "EXPIRED"
 	}
 
 	days := int(math.Floor(d.Hours() / 24))
