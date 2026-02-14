@@ -296,6 +296,111 @@ Files:
 
 ---
 
+## Phase 6: CI/Automation and Extended Discovery
+
+### WO-T21: JSON/table output for `now` mode
+
+**Goal**: `trustwatch now --output json` enables piping results into CI pipelines, scripts, or jq.
+
+Currently `now` always launches TUI. CI systems and scripts need structured output.
+
+**CLI changes**:
+```
+trustwatch now --output json    # JSON array of findings to stdout
+trustwatch now --output table   # ASCII table to stdout (no TUI)
+trustwatch now                  # TUI (default when TTY)
+```
+
+**Behavior**:
+- Auto-detect: if stdout is not a TTY, default to `table` instead of TUI
+- `--output json`: JSON array of CertFinding objects, same schema as `/api/v1/snapshot`
+- `--output table`: fixed-width ASCII table (severity, source, namespace/name, expires in, status)
+- Exit codes preserved: 0 (ok), 1 (warn), 2 (critical)
+- `--quiet` flag: suppress all output, only return exit code
+
+**Use cases**:
+- `trustwatch now --output json | jq '.[] | select(.severity == "critical")'`
+- `trustwatch now --quiet && echo "all clear" || echo "problems found"`
+- CI gate: `trustwatch now --output json --fail-on warn`
+
+**Files**:
+- `internal/cli/now.go` — add `--output` and `--quiet` flags, TTY detection
+- `internal/monitor/table.go` — ASCII table renderer (new)
+- `internal/monitor/json.go` — JSON output writer (new)
+- `internal/monitor/table_test.go`
+- `internal/monitor/json_test.go`
+
+**Verification**: `make test` passes, `trustwatch now --output json | jq .` works.
+
+---
+
+### WO-T22: Gateway API TLS discovery
+
+**Goal**: Discover TLS certificates from Gateway API resources (`gateway.networking.k8s.io`).
+
+Gateway API is replacing Ingress. Its TLS config lives on Gateway and HTTPRoute objects with `certificateRefs`.
+
+**Discovery targets**:
+- `Gateway` objects with `spec.listeners[].tls.certificateRefs` → dereference to TLS Secrets
+- `spec.listeners[].tls.mode: Terminate` → probe the gateway endpoint via TLS
+- Optional: `ReferenceGrant` awareness (cross-namespace secret refs)
+
+**Files**:
+- `internal/discovery/gateway.go`
+- `internal/discovery/gateway_test.go`
+
+**RBAC**: list/watch on `gateway.networking.k8s.io` gateways (add to ClusterRole in Helm chart).
+
+**Behavior**:
+- Gracefully skip if Gateway API CRDs not installed (check API discovery first)
+- Link findings back to Gateway object (namespace/name/listener)
+- Probe gateway TLS endpoints like Ingress discovery does
+
+**Verification**: `make test` passes, gracefully skips on clusters without Gateway API.
+
+---
+
+### WO-T23: Namespace-scoped RBAC degradation
+
+**Goal**: Work with namespace-scoped permissions instead of requiring cluster-wide read access.
+
+Not every team can get ClusterRole. trustwatch should degrade gracefully to whatever permissions are available.
+
+**Behavior**:
+- On startup, probe RBAC with SelfSubjectAccessReview for each resource type
+- Skip discoverers for resources the ServiceAccount can't access
+- Log which discoverers were skipped and why
+- `trustwatch now` header shows "Scope: cluster" or "Scope: namespace/payments"
+- `--namespace` flag to restrict discovery to specific namespace(s)
+
+**Files**:
+- `internal/discovery/rbac.go` — permission probing
+- `internal/discovery/rbac_test.go`
+- `internal/discovery/orchestrator.go` — respect RBAC probe results
+
+**Verification**: `make test` passes, restricted ServiceAccount still produces useful output.
+
+---
+
+### WO-T24: Grafana dashboard template
+
+**Goal**: Ship a Grafana dashboard JSON with the Helm chart.
+
+**Dashboard panels**:
+- Cert expiry timeline (gauge per cert, color by remaining time)
+- Discovery health (per-source success/failure)
+- Finding severity distribution (pie/bar)
+- Cert count by source (webhooks, secrets, mesh, external)
+
+**Files**:
+- `charts/trustwatch/dashboards/trustwatch.json`
+- `charts/trustwatch/templates/dashboard-configmap.yaml` (Grafana sidecar pattern)
+- `charts/trustwatch/values.yaml` — add `dashboard.enabled: true`
+
+**Verification**: `helm template` renders valid ConfigMap, dashboard JSON imports cleanly in Grafana.
+
+---
+
 ## Execution Order
 
 ```
@@ -313,3 +418,5 @@ WO-T10 → WO-T11 + WO-T12 + WO-T13       (aggregation + output)
 ```
 
 Critical path: T01 → T02 → T10 → T11 → T14 (minimum viable `now` + `serve`).
+
+Next priorities: T21 (JSON output) → T22 (Gateway API) → T23 (namespace RBAC) → T24 (Grafana dashboard).
