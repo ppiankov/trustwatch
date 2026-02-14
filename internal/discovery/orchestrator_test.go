@@ -238,7 +238,7 @@ func TestOrchestrator_WebhookEscalation(t *testing.T) {
 			Name:     "ignore-webhook",
 			NotAfter: now.Add(20 * 24 * time.Hour), // 20 days (in warn zone)
 			ProbeOK:  true,
-			Notes:    "", // Ignore policy — no escalation
+			Notes:    "failurePolicy=Ignore",
 		},
 	}
 
@@ -261,6 +261,62 @@ func TestOrchestrator_WebhookEscalation(t *testing.T) {
 	// failurePolicy=Ignore stays at warn
 	if snap.Findings[1].Severity != store.SeverityWarn {
 		t.Errorf("Ignore webhook in warn zone: expected severity %q, got %q", store.SeverityWarn, snap.Findings[1].Severity)
+	}
+}
+
+func TestOrchestrator_IgnoreWebhookSeverityCap(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:   store.SourceWebhook,
+			Severity: store.SeverityInfo,
+			Name:     "expired-ignore-webhook",
+			NotAfter: now.Add(-24 * time.Hour), // expired
+			ProbeOK:  true,
+			Notes:    "failurePolicy=Ignore",
+		},
+		{
+			Source:   store.SourceWebhook,
+			Severity: store.SeverityInfo,
+			Name:     "crit-zone-ignore-webhook",
+			NotAfter: now.Add(7 * 24 * time.Hour), // within crit threshold
+			ProbeOK:  true,
+			Notes:    "failurePolicy=Ignore",
+		},
+		{
+			Source:   store.SourceWebhook,
+			Severity: store.SeverityCritical,
+			Name:     "expired-fail-webhook",
+			NotAfter: now.Add(-24 * time.Hour), // expired
+			ProbeOK:  true,
+			Notes:    "failurePolicy=Fail",
+		},
+	}
+
+	o := NewOrchestrator(
+		[]Discoverer{&stubDiscoverer{name: "test", findings: findings}},
+		testWarnBefore, testCritBefore,
+	)
+	o.nowFn = fixedNow
+	snap := o.Run()
+
+	if len(snap.Findings) != 3 {
+		t.Fatalf("expected 3 findings, got %d", len(snap.Findings))
+	}
+
+	// Expired Ignore webhook should be capped at warn, not critical
+	if snap.Findings[0].Severity != store.SeverityWarn {
+		t.Errorf("expired Ignore webhook: expected %q, got %q", store.SeverityWarn, snap.Findings[0].Severity)
+	}
+
+	// Crit-zone Ignore webhook should be capped at warn
+	if snap.Findings[1].Severity != store.SeverityWarn {
+		t.Errorf("crit-zone Ignore webhook: expected %q, got %q", store.SeverityWarn, snap.Findings[1].Severity)
+	}
+
+	// Expired Fail webhook should stay critical
+	if snap.Findings[2].Severity != store.SeverityCritical {
+		t.Errorf("expired Fail webhook: expected %q, got %q", store.SeverityCritical, snap.Findings[2].Severity)
 	}
 }
 

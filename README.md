@@ -212,11 +212,11 @@ Exposes web UI, Prometheus metrics, and JSON API.
 ### Prometheus Metrics
 
 ```
-certwatch_cert_not_after_timestamp{source, namespace, name, severity}
-certwatch_cert_expires_in_seconds{source, namespace, name, severity}
-certwatch_probe_success{source, namespace, name}
-certwatch_scan_duration_seconds
-certwatch_findings_total{severity}
+trustwatch_cert_not_after_timestamp{source, namespace, name, severity}
+trustwatch_cert_expires_in_seconds{source, namespace, name, severity}
+trustwatch_probe_success{source, namespace, name}
+trustwatch_scan_duration_seconds
+trustwatch_findings_total{severity}
 ```
 
 ## Configuration
@@ -255,9 +255,37 @@ trustwatch
 │   └── JSON API
 └── Severity
     ├── Critical: expired, webhook Fail, within crit threshold
-    ├── Warn: within warn threshold
+    ├── Warn: within warn threshold, webhook Ignore (capped), insecureSkipTLSVerify
     └── Info: inventory (metrics only)
 ```
+
+## Security Model
+
+### RBAC Requirements
+
+trustwatch needs **read-only** cluster-wide access. The Helm chart creates a ClusterRole with these rules:
+
+| API Group | Resources | Verbs |
+|-----------|-----------|-------|
+| `""` (core) | secrets, services, configmaps, namespaces | list, watch |
+| `admissionregistration.k8s.io` | validatingwebhookconfigurations, mutatingwebhookconfigurations | list, watch |
+| `apiregistration.k8s.io` | apiservices | list, watch |
+| `apps` | deployments | list, watch |
+| `networking.k8s.io` | ingresses | list, watch |
+
+### Secret Access
+
+trustwatch reads `kubernetes.io/tls` Secrets to extract certificate expiry dates. It reads the `tls.crt` PEM data only — private keys (`tls.key`) are never accessed, logged, or stored. If you want to avoid Secret access entirely, remove the `secrets` permission and trustwatch will fall back to probe-only mode (TLS handshake) for all endpoints.
+
+### External Targets
+
+External targets are configured via a ConfigMap (in `serve` mode) or CLI config file (in `now` mode). They contain hostnames and ports, never credentials. If your external targets require authentication context, use annotations on Services instead.
+
+### Data Retention
+
+- **`now` mode**: Snapshot exists only in memory for the duration of the TUI session. Nothing is written to disk.
+- **`serve` mode**: The latest snapshot is held in memory and served via `/api/v1/snapshot`. No historical data is stored. Prometheus metrics are exported for external retention.
+- **No PII**: trustwatch stores certificate metadata (subject, issuer, SANs, serial, expiry). It does not store certificate private keys, request bodies, or user data.
 
 ## Known Limitations
 

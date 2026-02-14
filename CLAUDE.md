@@ -23,7 +23,7 @@ Principiis obsta — resist the beginnings. Address root causes, not symptoms. C
 - Store: `internal/store/` — CertFinding + Snapshot data model
 - Config: `internal/config/` — YAML config with sane defaults
 - Web: `internal/web/` — Built-in problems UI + JSON API
-- Metrics: `internal/metrics/` — Prometheus exporter (certwatch_cert_expires_in_seconds, etc.)
+- Metrics: `internal/metrics/` — Prometheus exporter (trustwatch_cert_expires_in_seconds, etc.)
 
 ## Annotations
 - `trustwatch.dev/enabled: "true"` — Mark a Service/Deployment for monitoring

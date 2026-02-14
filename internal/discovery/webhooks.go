@@ -100,7 +100,7 @@ func (d *WebhookDiscoverer) processWebhook(configName, webhookName string, failu
 	notes := "failurePolicy=Fail"
 	if failurePolicy != nil && *failurePolicy == admissionregistrationv1.Ignore {
 		severity = store.SeverityInfo
-		notes = ""
+		notes = "failurePolicy=Ignore"
 	}
 
 	finding := store.CertFinding{

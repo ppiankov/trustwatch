@@ -125,8 +125,8 @@ func TestWebhookDiscoverer_MutatingIgnorePolicy(t *testing.T) {
 	if f.Severity != store.SeverityInfo {
 		t.Errorf("expected severity %q, got %q", store.SeverityInfo, f.Severity)
 	}
-	if f.Notes != "" {
-		t.Errorf("expected empty notes, got %q", f.Notes)
+	if f.Notes != "failurePolicy=Ignore" {
+		t.Errorf("expected notes %q, got %q", "failurePolicy=Ignore", f.Notes)
 	}
 }
 
