@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.2.0] - 2026-02-14
+## [0.1.2] - 2026-02-14
 
 ### Added
 - Structured logging via `slog` with `--log-level` (debug/info/warn/error) and `--log-format` (text/json) flags
