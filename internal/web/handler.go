@@ -63,6 +63,7 @@ func UIHandler(getSnapshot SnapshotFunc) http.HandlerFunc {
 				Where:     formatWhere(f),
 				ExpiresIn: formatExpiresIn(f.NotAfter, now),
 				NotAfter:  formatNotAfter(f.NotAfter),
+				Risk:      f.Notes,
 				Error:     f.ProbeErr,
 			})
 		}
@@ -114,6 +115,7 @@ type findingRow struct {
 	Where     string
 	ExpiresIn string
 	NotAfter  string
+	Risk      string
 	Error     string
 }
 

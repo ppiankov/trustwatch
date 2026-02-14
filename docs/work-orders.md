@@ -167,10 +167,10 @@ Verification: `make test` passes, TUI renders correctly.
 ### WO-T12: Prometheus metrics exporter
 
 Implement metrics:
-- `certwatch_cert_not_after_timestamp` (gauge)
-- `certwatch_cert_expires_in_seconds` (gauge)
-- `certwatch_probe_ok` (gauge, 1/0)
-- `certwatch_discovery_ok` (gauge per source, for degradation visibility)
+- `trustwatch_cert_not_after_timestamp` (gauge)
+- `trustwatch_cert_expires_in_seconds` (gauge)
+- `trustwatch_probe_ok` (gauge, 1/0)
+- `trustwatch_discovery_ok` (gauge per source, for degradation visibility)
 
 Labels: source, namespace, name, target, severity (bounded).
 
@@ -248,7 +248,7 @@ Verification: `docker build -t trustwatch .` succeeds.
 
 Generate PrometheusRule YAML for GitOps workflows:
 - `trustwatch rules --output rules.yaml`
-- Produces PrometheusRule with alert rules for certwatch_cert_expires_in_seconds thresholds
+- Produces PrometheusRule with alert rules for trustwatch_cert_expires_in_seconds thresholds
 
 Files:
 - `internal/cli/rules.go`

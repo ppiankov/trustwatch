@@ -8,6 +8,10 @@ dist/
 *.dylib
 *.test
 
+# Release artifacts
+*.tar.gz
+*.zip
+
 # Go artifacts
 *.out
 coverage.out
