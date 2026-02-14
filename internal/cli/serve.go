@@ -131,17 +131,31 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	// Derive API server host from kubeconfig for local probing
 	apiServerTarget := apiServerFromHost(restCfg.Host)
 
+	// Resolve namespaces for namespace-scoped discoverers
+	nsCtx := context.Background()
+	allNS, err := discovery.ResolveNamespaces(nsCtx, clientset, cfg.Namespaces)
+	if err != nil {
+		return fmt.Errorf("resolving namespaces: %w", err)
+	}
+	secretNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "secrets")
+	ingressNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "networking.k8s.io", "ingresses")
+	svcNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "services")
+	gwNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "gateway.networking.k8s.io", "gateways")
+	slog.Info("namespace access resolved", "total", len(allNS),
+		"secrets", len(secretNS), "ingresses", len(ingressNS),
+		"services", len(svcNS), "gateways", len(gwNS))
+
 	// Build discoverers
 	discoverers := []discovery.Discoverer{
 		discovery.NewWebhookDiscoverer(clientset),
 		discovery.NewAPIServiceDiscoverer(aggClient),
 		discovery.NewAPIServerDiscoverer(apiServerTarget, discovery.WithProbeFn(restProbe(restCfg))),
-		discovery.NewSecretDiscoverer(clientset),
-		discovery.NewIngressDiscoverer(clientset),
+		discovery.NewSecretDiscoverer(clientset, discovery.WithSecretNamespaces(secretNS)),
+		discovery.NewIngressDiscoverer(clientset, discovery.WithIngressNamespaces(ingressNS)),
 		discovery.NewLinkerdDiscoverer(clientset),
 		discovery.NewIstioDiscoverer(clientset),
-		discovery.NewAnnotationDiscoverer(clientset),
-		discovery.NewGatewayDiscoverer(gwClient, clientset),
+		discovery.NewAnnotationDiscoverer(clientset, discovery.WithAnnotationNamespaces(svcNS)),
+		discovery.NewGatewayDiscoverer(gwClient, clientset, discovery.WithGatewayNamespaces(gwNS)),
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External))

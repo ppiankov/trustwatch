@@ -265,3 +265,40 @@ func TestSecretDiscoverer_MissingTLSCrtKey(t *testing.T) {
 		t.Errorf("expected ProbeErr %q, got %q", errMissingTLSCrt, f.ProbeErr)
 	}
 }
+
+func TestSecretDiscoverer_NamespaceFiltered(t *testing.T) {
+	pemData := testCert(t, time.Now().Add(30*24*time.Hour), []string{"a.example.com"})
+
+	objs := []runtime.Object{
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "tls-1", Namespace: "ns1"},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "tls-2", Namespace: "ns2"},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "tls-3", Namespace: "ns3"},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+	}
+
+	d := NewSecretDiscoverer(fake.NewClientset(objs...), WithSecretNamespaces([]string{"ns1", "ns3"}))
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings (ns1+ns3), got %d", len(findings))
+	}
+	if findings[0].Namespace != "ns1" {
+		t.Errorf("expected finding[0] namespace ns1, got %q", findings[0].Namespace)
+	}
+	if findings[1].Namespace != "ns3" {
+		t.Errorf("expected finding[1] namespace ns3, got %q", findings[1].Namespace)
+	}
+}

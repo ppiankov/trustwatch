@@ -167,16 +167,16 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	if useTunnel {
 		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS, tunnelImg, tunnelCmd, tunnelSecret)
 		slog.Info("deploying tunnel relay pod", "namespace", tunnelNS)
-		if err := relay.Start(context.Background()); err != nil {
-			return fmt.Errorf("starting tunnel relay: %w", err)
+		if startErr := relay.Start(context.Background()); startErr != nil {
+			return fmt.Errorf("starting tunnel relay: %w", startErr)
 		}
 		slog.Info("tunnel ready", "port", relay.LocalPort(), "pod", relay.PodName())
 		tunnelProbeFn = relay.ProbeFn()
 	}
 	closeRelay := func() {
 		if relay != nil {
-			if err := relay.Close(); err != nil {
-				slog.Warn("cleaning up relay pod", "err", err)
+			if closeErr := relay.Close(); closeErr != nil {
+				slog.Warn("cleaning up relay pod", "err", closeErr)
 			}
 		}
 	}
@@ -184,6 +184,20 @@ func runNow(cmd *cobra.Command, _ []string) error {
 
 	// Derive API server host from kubeconfig for local probing
 	apiServerTarget := apiServerFromHost(restCfg.Host)
+
+	// Resolve namespaces for namespace-scoped discoverers
+	nsCtx := context.Background()
+	allNS, err := discovery.ResolveNamespaces(nsCtx, clientset, cfg.Namespaces)
+	if err != nil {
+		return fmt.Errorf("resolving namespaces: %w", err)
+	}
+	secretNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "secrets")
+	ingressNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "networking.k8s.io", "ingresses")
+	svcNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "services")
+	gwNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "gateway.networking.k8s.io", "gateways")
+	slog.Info("namespace access resolved", "total", len(allNS),
+		"secrets", len(secretNS), "ingresses", len(ingressNS),
+		"services", len(svcNS), "gateways", len(gwNS))
 
 	// Build discoverers — probing discoverers get the tunnel probe function when --tunnel is set
 	var webhookOpts []func(*discovery.WebhookDiscoverer)
@@ -196,17 +210,18 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		annotOpts = append(annotOpts, discovery.WithAnnotationProbeFn(tunnelProbeFn))
 		extOpts = append(extOpts, discovery.WithExternalProbeFn(tunnelProbeFn))
 	}
+	annotOpts = append(annotOpts, discovery.WithAnnotationNamespaces(svcNS))
 
 	discoverers := []discovery.Discoverer{
 		discovery.NewWebhookDiscoverer(clientset, webhookOpts...),
 		discovery.NewAPIServiceDiscoverer(aggClient, apiSvcOpts...),
 		discovery.NewAPIServerDiscoverer(apiServerTarget, discovery.WithProbeFn(restProbe(restCfg))),
-		discovery.NewSecretDiscoverer(clientset),
-		discovery.NewIngressDiscoverer(clientset),
+		discovery.NewSecretDiscoverer(clientset, discovery.WithSecretNamespaces(secretNS)),
+		discovery.NewIngressDiscoverer(clientset, discovery.WithIngressNamespaces(ingressNS)),
 		discovery.NewLinkerdDiscoverer(clientset),
 		discovery.NewIstioDiscoverer(clientset),
 		discovery.NewAnnotationDiscoverer(clientset, annotOpts...),
-		discovery.NewGatewayDiscoverer(gwClient, clientset),
+		discovery.NewGatewayDiscoverer(gwClient, clientset, discovery.WithGatewayNamespaces(gwNS)),
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External, extOpts...))

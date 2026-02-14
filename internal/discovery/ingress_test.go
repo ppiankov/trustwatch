@@ -350,3 +350,44 @@ func TestIngressDiscoverer_NoTLSBlock(t *testing.T) {
 		t.Errorf("expected 0 findings for ingress without TLS, got %d", len(findings))
 	}
 }
+
+func TestIngressDiscoverer_NamespaceFiltered(t *testing.T) {
+	pemData := testCert(t, time.Now().Add(30*24*time.Hour), []string{"a.example.com"})
+
+	objs := []runtime.Object{
+		&networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{Name: "ing-1", Namespace: "ns1"},
+			Spec: networkingv1.IngressSpec{
+				TLS: []networkingv1.IngressTLS{{SecretName: "tls-1"}},
+			},
+		},
+		&networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{Name: "ing-2", Namespace: "ns2"},
+			Spec: networkingv1.IngressSpec{
+				TLS: []networkingv1.IngressTLS{{SecretName: "tls-2"}},
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "tls-1", Namespace: "ns1"},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "tls-2", Namespace: "ns2"},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+	}
+
+	d := NewIngressDiscoverer(fake.NewClientset(objs...), WithIngressNamespaces([]string{"ns1"}))
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding (ns1 only), got %d", len(findings))
+	}
+	if findings[0].Namespace != "ns1" {
+		t.Errorf("expected namespace ns1, got %q", findings[0].Namespace)
+	}
+}

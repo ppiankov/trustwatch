@@ -355,6 +355,73 @@ func TestGatewayDiscoverer_CRDsAbsent(t *testing.T) {
 	}
 }
 
+func TestGatewayDiscoverer_NamespaceFiltered(t *testing.T) {
+	notAfter := time.Now().Add(30 * 24 * time.Hour).Truncate(time.Second)
+	pemData := testCert(t, notAfter, []string{"a.example.com"})
+
+	gw1 := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "gw-1", Namespace: testNS1},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "istio",
+			Listeners: []gatewayv1.Listener{
+				{
+					Name: "https", Protocol: gatewayv1.HTTPSProtocolType, Port: 443,
+					TLS: &gatewayv1.ListenerTLSConfig{
+						CertificateRefs: []gatewayv1.SecretObjectReference{
+							{Name: "cert-1"},
+						},
+					},
+				},
+			},
+		},
+	}
+	gw2 := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "gw-2", Namespace: testNS2},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: "istio",
+			Listeners: []gatewayv1.Listener{
+				{
+					Name: "https", Protocol: gatewayv1.HTTPSProtocolType, Port: 443,
+					TLS: &gatewayv1.ListenerTLSConfig{
+						CertificateRefs: []gatewayv1.SecretObjectReference{
+							{Name: "cert-2"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	coreObjs := []runtime.Object{
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "cert-1", Namespace: testNS1},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "cert-2", Namespace: testNS2},
+			Type:       corev1.SecretTypeTLS,
+			Data:       map[string][]byte{"tls.crt": pemData, "tls.key": []byte("k")},
+		},
+	}
+
+	d := NewGatewayDiscoverer(
+		newGatewayClientset(t, gw1, gw2),
+		fakeWithGatewayAPI(coreObjs...),
+		WithGatewayNamespaces([]string{testNS1}),
+	)
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding (ns1 only), got %d", len(findings))
+	}
+	if findings[0].Namespace != testNS1 {
+		t.Errorf("expected namespace ns1, got %q", findings[0].Namespace)
+	}
+}
+
 func TestGatewayDiscoverer_CrossNamespaceRef(t *testing.T) {
 	notAfter := time.Now().Add(30 * 24 * time.Hour).Truncate(time.Second)
 	pemData := testCert(t, notAfter, []string{"cross.example.com"})

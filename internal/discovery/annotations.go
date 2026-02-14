@@ -26,8 +26,9 @@ const (
 
 // AnnotationDiscoverer finds TLS targets from trustwatch.dev/* annotations on Services and Deployments.
 type AnnotationDiscoverer struct {
-	client  kubernetes.Interface
-	probeFn func(string) probe.Result
+	client     kubernetes.Interface
+	probeFn    func(string) probe.Result
+	namespaces []string
 }
 
 // NewAnnotationDiscoverer creates a discoverer that scans annotations for TLS targets.
@@ -40,6 +41,13 @@ func NewAnnotationDiscoverer(client kubernetes.Interface, opts ...func(*Annotati
 		o(d)
 	}
 	return d
+}
+
+// WithAnnotationNamespaces restricts discovery to the given namespaces.
+func WithAnnotationNamespaces(ns []string) func(*AnnotationDiscoverer) {
+	return func(d *AnnotationDiscoverer) {
+		d.namespaces = ns
+	}
 }
 
 // WithAnnotationProbeFn sets a custom probe function for annotation discovery.
@@ -59,28 +67,32 @@ func (d *AnnotationDiscoverer) Discover() ([]store.CertFinding, error) {
 	ctx := context.Background()
 	var findings []store.CertFinding
 
-	svcs, err := d.client.CoreV1().Services("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("listing services: %w", err)
-	}
-	for i := range svcs.Items {
-		svc := &svcs.Items[i]
-		if svc.Annotations[annoEnabled] != "true" {
-			continue
+	for _, ns := range namespacesOrAll(d.namespaces) {
+		svcs, err := d.client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("listing services: %w", err)
 		}
-		findings = append(findings, d.processAnnotated(ctx, svc.Namespace, svc.Name, "Service", svc.Annotations)...)
+		for i := range svcs.Items {
+			svc := &svcs.Items[i]
+			if svc.Annotations[annoEnabled] != "true" {
+				continue
+			}
+			findings = append(findings, d.processAnnotated(ctx, svc.Namespace, svc.Name, "Service", svc.Annotations)...)
+		}
 	}
 
-	deps, err := d.client.AppsV1().Deployments("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("listing deployments: %w", err)
-	}
-	for i := range deps.Items {
-		dep := &deps.Items[i]
-		if dep.Annotations[annoEnabled] != "true" {
-			continue
+	for _, ns := range namespacesOrAll(d.namespaces) {
+		deps, err := d.client.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("listing deployments: %w", err)
 		}
-		findings = append(findings, d.processAnnotated(ctx, dep.Namespace, dep.Name, "Deployment", dep.Annotations)...)
+		for i := range deps.Items {
+			dep := &deps.Items[i]
+			if dep.Annotations[annoEnabled] != "true" {
+				continue
+			}
+			findings = append(findings, d.processAnnotated(ctx, dep.Namespace, dep.Name, "Deployment", dep.Annotations)...)
+		}
 	}
 
 	return findings, nil
