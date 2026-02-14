@@ -14,6 +14,8 @@ on:
 permissions:
   contents: write
   packages: write
+  id-token: write
+  attestations: write
 
 jobs:
   test:
@@ -89,6 +91,16 @@ jobs:
           cd dist
           sha256sum * > checksums.txt
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign checksums
+        run: |
+          cosign sign-blob --yes \
+            --output-signature dist/checksums.txt.sig \
+            --output-certificate dist/checksums.txt.pem \
+            dist/checksums.txt
+
       - name: Extract release notes from CHANGELOG
         id: notes
         run: |
@@ -131,6 +143,20 @@ jobs:
             echo '```'
             echo ""
             echo "**Verify checksums:** \`sha256sum -c checksums.txt\`"
+            echo ""
+            echo "**Verify checksum signature:**"
+            echo '```bash'
+            echo "cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \\"
+            echo "  --certificate-oidc-issuer https://token.actions.githubusercontent.com \\"
+            echo "  --certificate-identity-regexp \"https://github.com/${REPO}/\" checksums.txt"
+            echo '```'
+            echo ""
+            echo "**Verify container image:**"
+            echo '```bash'
+            echo "cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \\"
+            echo "  --certificate-identity-regexp \"https://github.com/${REPO}/\" \\"
+            echo "  ghcr.io/${REPO}:${VERSION}"
+            echo '```'
           } > /tmp/release-body.md
 
           echo "notes<<EOF" >> $GITHUB_OUTPUT
@@ -181,6 +207,7 @@ jobs:
             type=raw,value=latest
 
       - uses: docker/build-push-action@v6
+        id: build-push
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -188,3 +215,33 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ steps.tag.outputs.version }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign container image
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          images=""
+          for tag in ${TAGS}; do
+            images+="${tag}@${DIGEST} "
+          done
+          cosign sign --yes ${images}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ steps.build-push.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-spdx.json
+
+      - name: Attest SBOM
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+        run: |
+          cosign attest --yes \
+            --predicate sbom-spdx.json \
+            --type spdxjson \
+            ghcr.io/${{ github.repository }}@${DIGEST}

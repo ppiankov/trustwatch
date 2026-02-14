@@ -32,6 +32,28 @@ docker push my-registry.io/trustwatch:v0.1.4
 
 Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on each release. The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
 
+### Verification
+
+Container images and binary checksums are signed with [Sigstore](https://sigstore.dev) keyless signing.
+
+```bash
+# Verify container image
+cosign verify --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "https://github.com/ppiankov/trustwatch/" \
+  ghcr.io/ppiankov/trustwatch:latest
+
+# Verify SBOM attestation
+cosign verify-attestation --type spdxjson \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "https://github.com/ppiankov/trustwatch/" \
+  ghcr.io/ppiankov/trustwatch:latest
+
+# Verify binary checksums
+cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp "https://github.com/ppiankov/trustwatch/" checksums.txt
+```
+
 ### Exit Codes
 
 | Code | Meaning |
@@ -265,6 +287,7 @@ trustwatch_probe_success{source, namespace, name}
 trustwatch_scan_duration_seconds
 trustwatch_findings_total{severity}
 trustwatch_discovery_errors_total{source}
+trustwatch_chain_errors_total{source}
 ```
 
 ## Configuration
@@ -391,6 +414,8 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - [x] `rules` command (generate PrometheusRule YAML)
 - [x] cert-manager Certificate CR discovery
 - [x] Webhook and Slack notifications
+- [x] Certificate chain validation (broken chains, wrong SANs, self-signed leaves)
+- [x] Signed container images + SBOM attestation (Cosign/Sigstore)
 - [ ] TrustPolicy CRD (future)
 
 ## License
