@@ -1,3 +1,4 @@
+// Package probe provides TLS handshake probing for certificate inspection.
 package probe
 
 import (
@@ -19,9 +20,9 @@ const defaultTimeout = 5 * time.Second
 // Result holds the outcome of a TLS probe.
 type Result struct {
 	Cert     *x509.Certificate
+	ProbeErr string
 	Chain    []*x509.Certificate
 	ProbeOK  bool
-	ProbeErr string
 }
 
 // Probe connects to a TLS endpoint and returns the presented certificate.

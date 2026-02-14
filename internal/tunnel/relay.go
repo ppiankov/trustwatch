@@ -42,11 +42,11 @@ type Relay struct {
 	clientset  kubernetes.Interface
 	restConfig *rest.Config
 	stopChan   chan struct{}
-	command    []string
 	image      string
 	namespace  string
 	podName    string
 	pullSecret string
+	command    []string
 	closeOnce  sync.Once
 	localPort  uint16
 }

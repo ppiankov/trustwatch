@@ -276,7 +276,7 @@ func TestAPIServiceDiscoverer_ProbeFailure(t *testing.T) {
 	client := newFakeAggregatorClient(as)
 	d := NewAPIServiceDiscoverer(client)
 	d.probeFn = func(_ string) probe.Result {
-		return probe.Result{ProbeOK: false, ProbeErr: "connection refused"}
+		return probe.Result{ProbeOK: false, ProbeErr: testProbeErrConnRefused}
 	}
 
 	findings, err := d.Discover()
@@ -291,8 +291,8 @@ func TestAPIServiceDiscoverer_ProbeFailure(t *testing.T) {
 	if f.ProbeOK {
 		t.Error("expected probe failure")
 	}
-	if f.ProbeErr != "connection refused" {
-		t.Errorf("expected probe error %q, got %q", "connection refused", f.ProbeErr)
+	if f.ProbeErr != testProbeErrConnRefused {
+		t.Errorf("expected probe error %q, got %q", testProbeErrConnRefused, f.ProbeErr)
 	}
 	if !f.NotAfter.IsZero() {
 		t.Error("expected zero NotAfter on probe failure")

@@ -1,6 +1,7 @@
 package socks5
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ import (
 )
 
 // startEchoServer starts a TCP server that echoes back whatever it receives.
-func startEchoServer(t *testing.T) (string, func()) {
+func startEchoServer(t *testing.T) (addr string, cleanup func()) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -25,16 +26,16 @@ func startEchoServer(t *testing.T) (string, func()) {
 				return
 			}
 			go func() {
-				defer conn.Close()
-				io.Copy(conn, conn) //nolint:errcheck
+				defer conn.Close()  //nolint:errcheck // test helper
+				io.Copy(conn, conn) //nolint:errcheck // test echo
 			}()
 		}
 	}()
-	return ln.Addr().String(), func() { ln.Close() }
+	return ln.Addr().String(), func() { ln.Close() } //nolint:errcheck // test cleanup
 }
 
 // startSOCKS5 starts a SOCKS5 server on a random port and returns its address.
-func startSOCKS5(t *testing.T, ctx context.Context) string {
+func startSOCKS5(ctx context.Context, t *testing.T) string {
 	t.Helper()
 	// Find a free port
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -71,7 +72,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	socksAddr := startSOCKS5(t, ctx)
+	socksAddr := startSOCKS5(ctx, t)
 
 	// Connect through SOCKS5 to the echo server
 	dialer, err := proxy.SOCKS5("tcp", socksAddr, nil, proxy.Direct)
@@ -95,7 +96,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 	if _, err := io.ReadFull(conn, buf); err != nil {
 		t.Fatalf("reading echo: %v", err)
 	}
-	if string(buf) != string(msg) {
+	if !bytes.Equal(buf, msg) {
 		t.Errorf("echo mismatch: got %q, want %q", buf, msg)
 	}
 }
@@ -103,7 +104,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 func TestServer_InvalidVersion(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	socksAddr := startSOCKS5(t, ctx)
+	socksAddr := startSOCKS5(ctx, t)
 
 	conn, err := net.Dial("tcp", socksAddr)
 	if err != nil {
@@ -112,7 +113,7 @@ func TestServer_InvalidVersion(t *testing.T) {
 	defer conn.Close()
 
 	// Send SOCKS4 version byte — should be rejected
-	conn.Write([]byte{0x04, 0x01, 0x00}) //nolint:errcheck
+	conn.Write([]byte{0x04, 0x01, 0x00}) //nolint:errcheck // test: intentionally invalid data
 	conn.SetReadDeadline(time.Now().Add(time.Second))
 
 	buf := make([]byte, 16)
@@ -126,7 +127,7 @@ func TestServer_InvalidVersion(t *testing.T) {
 func TestServer_ConnectUnreachable(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	socksAddr := startSOCKS5(t, ctx)
+	socksAddr := startSOCKS5(ctx, t)
 
 	dialer, err := proxy.SOCKS5("tcp", socksAddr, nil, proxy.Direct)
 	if err != nil {
@@ -142,7 +143,7 @@ func TestServer_ConnectUnreachable(t *testing.T) {
 
 func TestServer_ContextCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	socksAddr := startSOCKS5(t, ctx)
+	socksAddr := startSOCKS5(ctx, t)
 
 	// Verify server is up
 	conn, err := net.DialTimeout("tcp", socksAddr, time.Second)
@@ -175,7 +176,7 @@ func TestServer_MultipleConnections(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	socksAddr := startSOCKS5(t, ctx)
+	socksAddr := startSOCKS5(ctx, t)
 
 	for i := range 5 {
 		dialer, err := proxy.SOCKS5("tcp", socksAddr, nil, proxy.Direct)
@@ -189,10 +190,10 @@ func TestServer_MultipleConnections(t *testing.T) {
 		}
 
 		msg := []byte(fmt.Sprintf("msg-%d", i))
-		conn.Write(msg) //nolint:errcheck
+		conn.Write(msg) //nolint:errcheck // test: best-effort write
 		buf := make([]byte, len(msg))
-		io.ReadFull(conn, buf) //nolint:errcheck
-		if string(buf) != string(msg) {
+		io.ReadFull(conn, buf) //nolint:errcheck // test: best-effort read
+		if !bytes.Equal(buf, msg) {
 			t.Errorf("connection %d: got %q, want %q", i, buf, msg)
 		}
 		conn.Close()

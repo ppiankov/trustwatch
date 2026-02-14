@@ -27,16 +27,16 @@ var (
 
 // Model is the BubbleTea model for the now TUI.
 type Model struct {
-	context     string
 	snap        store.Snapshot
-	allFindings []store.CertFinding // full sorted set
-	findings    []store.CertFinding // current view (may be filtered)
+	context     string
+	allFindings []store.CertFinding
+	findings    []store.CertFinding
+	searchInput textinput.Model
 	table       table.Model
 	width       int
 	height      int
 	quitting    bool
 	searching   bool
-	searchInput textinput.Model
 }
 
 // NewModel creates a TUI model from a completed snapshot.

@@ -1,3 +1,4 @@
+// Package monitor provides TUI rendering and exit-code logic for trustwatch.
 package monitor
 
 import "github.com/ppiankov/trustwatch/internal/store"

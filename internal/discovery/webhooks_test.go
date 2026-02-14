@@ -125,8 +125,8 @@ func TestWebhookDiscoverer_MutatingIgnorePolicy(t *testing.T) {
 	if f.Severity != store.SeverityInfo {
 		t.Errorf("expected severity %q, got %q", store.SeverityInfo, f.Severity)
 	}
-	if f.Notes != "failurePolicy=Ignore" {
-		t.Errorf("expected notes %q, got %q", "failurePolicy=Ignore", f.Notes)
+	if f.Notes != notesFailPolicyIgnore {
+		t.Errorf("expected notes %q, got %q", notesFailPolicyIgnore, f.Notes)
 	}
 }
 
@@ -335,7 +335,7 @@ func TestWebhookDiscoverer_ProbeFailure(t *testing.T) {
 	client := fake.NewClientset(vwc)
 	d := NewWebhookDiscoverer(client)
 	d.probeFn = func(_ string) probe.Result {
-		return probe.Result{ProbeOK: false, ProbeErr: "connection refused"}
+		return probe.Result{ProbeOK: false, ProbeErr: testProbeErrConnRefused}
 	}
 
 	findings, err := d.Discover()
@@ -350,8 +350,8 @@ func TestWebhookDiscoverer_ProbeFailure(t *testing.T) {
 	if f.ProbeOK {
 		t.Error("expected probe failure")
 	}
-	if f.ProbeErr != "connection refused" {
-		t.Errorf("expected probe error %q, got %q", "connection refused", f.ProbeErr)
+	if f.ProbeErr != testProbeErrConnRefused {
+		t.Errorf("expected probe error %q, got %q", testProbeErrConnRefused, f.ProbeErr)
 	}
 	if f.NotAfter.IsZero() == false {
 		t.Error("expected zero NotAfter on probe failure")

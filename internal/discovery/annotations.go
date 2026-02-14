@@ -1,3 +1,4 @@
+// Package discovery provides pluggable discoverers that find TLS trust surfaces in a Kubernetes cluster.
 package discovery
 
 import (

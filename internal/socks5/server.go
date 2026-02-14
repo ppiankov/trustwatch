@@ -37,7 +37,7 @@ type Server struct {
 	Addr string // listen address, default ":1080"
 }
 
-// ListenAndServe starts the SOCKS5 server. It blocks until ctx is cancelled.
+// ListenAndServe starts the SOCKS5 server. It blocks until ctx is canceled.
 func (s *Server) ListenAndServe(ctx context.Context) error {
 	addr := s.Addr
 	if addr == "" {
@@ -50,10 +50,10 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		return fmt.Errorf("socks5 listen: %w", err)
 	}
 
-	// Shut down listener when context is cancelled
+	// Shut down listener when context is canceled
 	go func() {
 		<-ctx.Done()
-		ln.Close()
+		ln.Close() //nolint:errcheck // best-effort shutdown
 	}()
 
 	slog.Info("socks5 listening", "addr", ln.Addr())
@@ -71,7 +71,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck // best-effort cleanup
 
 	// Phase 1: version/method negotiation
 	if err := s.negotiate(conn); err != nil {
@@ -144,7 +144,7 @@ func (s *Server) handleRequest(conn net.Conn) {
 		s.sendReply(conn, rep)
 		return
 	}
-	defer target.Close()
+	defer target.Close() //nolint:errcheck // best-effort cleanup
 
 	s.sendReply(conn, repSuccess)
 
@@ -205,7 +205,6 @@ func (s *Server) readAddr(r io.Reader, atyp byte) (string, error) {
 // sendReply writes a minimal SOCKS5 reply with the given status code.
 // Bound address is always 0.0.0.0:0 since the client doesn't use it.
 func (s *Server) sendReply(conn net.Conn, rep byte) {
-	// version(1) + rep(1) + rsv(1) + atyp(1) + addr(4) + port(2) = 10
 	reply := []byte{socks5Version, rep, 0x00, atypIPv4, 0, 0, 0, 0, 0, 0}
 	conn.Write(reply) //nolint:errcheck // best-effort reply
 }

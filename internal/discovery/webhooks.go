@@ -12,7 +12,10 @@ import (
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
-const defaultWebhookPort = 443
+const (
+	defaultWebhookPort    = 443
+	notesFailPolicyIgnore = "failurePolicy=Ignore"
+)
 
 // WebhookDiscoverer finds TLS certificates on admission webhook endpoints.
 type WebhookDiscoverer struct {
@@ -100,7 +103,7 @@ func (d *WebhookDiscoverer) processWebhook(configName, webhookName string, failu
 	notes := "failurePolicy=Fail"
 	if failurePolicy != nil && *failurePolicy == admissionregistrationv1.Ignore {
 		severity = store.SeverityInfo
-		notes = "failurePolicy=Ignore"
+		notes = notesFailPolicyIgnore
 	}
 
 	finding := store.CertFinding{
