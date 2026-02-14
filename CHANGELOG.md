@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-02-14
+
+### Added
+- `--output json` / `-o json` flag on `now` command for CI-friendly JSON output
+- `--output table` / `-o table` flag on `now` command for forced table output even in TTY
+- `--quiet` / `-q` flag on `now` command to suppress output (exit code only, for CI gates)
+- Gateway API TLS discovery: extracts certificates from `gateway.networking.k8s.io/v1` Gateway listener `certificateRefs`
+- Graceful skip when Gateway API CRDs are not installed
+- Cross-namespace Gateway certificate reference support
+- Namespace-scoped RBAC: discoverers respect `--namespace` flag and probe permissions via `SelfSubjectAccessReview`
+- Inaccessible namespaces are skipped gracefully with a warning instead of returning 403 errors
+- Grafana dashboard shipped as optional ConfigMap in Helm chart (`grafanaDashboard.enabled`)
+- Helm RBAC: `gateway.networking.k8s.io` gateways list/watch, `authorization.k8s.io` selfsubjectaccessreviews create
+
 ## [0.1.2] - 2026-02-14
 
 ### Added
