@@ -43,6 +43,18 @@ Exit codes:
   # Scan a specific context with custom thresholds
   trustwatch now --context prod --warn-before 360h --crit-before 168h
 
+  # JSON output for automation
+  trustwatch now --output json
+
+  # Table output even in a terminal
+  trustwatch now -o table
+
+  # CI gate: exit code only, no output
+  trustwatch now --quiet && echo "All certs OK"
+
+  # JSON piped to jq
+  trustwatch now -o json | jq '.snapshot.findings[] | select(.severity == "critical")'
+
   # Scan through an in-cluster SOCKS5 relay (resolves cluster DNS)
   trustwatch now --tunnel
 
@@ -64,6 +76,8 @@ func init() {
 	nowCmd.Flags().String("tunnel-image", tunnel.DefaultImage, "SOCKS5 proxy image for --tunnel")
 	nowCmd.Flags().StringSlice("tunnel-command", nil, "Override container command (e.g. 'microsocks,-p,1080')")
 	nowCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
+	nowCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: auto-detect TTY)")
+	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
 }
 
 func runNow(cmd *cobra.Command, _ []string) error {
@@ -200,14 +214,32 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	// Display results
 	exitCode := monitor.ExitCode(snap)
 
-	if isInteractive() {
-		m := monitor.NewModel(snap, kubeCtx)
-		p := tea.NewProgram(m, tea.WithAltScreen())
-		if _, err := p.Run(); err != nil {
-			return fmt.Errorf("TUI error: %w", err)
+	outputFlag, _ := cmd.Flags().GetString("output") //nolint:errcheck // flag registered above
+	quiet, _ := cmd.Flags().GetBool("quiet")         //nolint:errcheck // flag registered above
+
+	if outputFlag != "" && outputFlag != "json" && outputFlag != "table" {
+		return fmt.Errorf("invalid --output value %q: must be json or table", outputFlag)
+	}
+
+	if !quiet {
+		switch outputFlag {
+		case "json":
+			if err := monitor.WriteJSON(os.Stdout, snap, exitCode); err != nil {
+				return fmt.Errorf("writing JSON output: %w", err)
+			}
+		case "table":
+			fmt.Print(monitor.PlainText(snap))
+		default:
+			if isInteractive() {
+				m := monitor.NewModel(snap, kubeCtx)
+				p := tea.NewProgram(m, tea.WithAltScreen())
+				if _, err := p.Run(); err != nil {
+					return fmt.Errorf("TUI error: %w", err)
+				}
+			} else {
+				fmt.Print(monitor.PlainText(snap))
+			}
 		}
-	} else {
-		fmt.Print(monitor.PlainText(snap))
 	}
 
 	if exitCode != 0 {

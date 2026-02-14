@@ -72,11 +72,29 @@ func TestNowCommand_Flags(t *testing.T) {
 		t.Fatalf("failed to find 'now' command: %v", err)
 	}
 
-	expectedFlags := []string{"context", "kubeconfig", "config", "warn-before", "crit-before", "tunnel", "tunnel-ns", "tunnel-image"}
+	expectedFlags := []string{"context", "kubeconfig", "config", "warn-before", "crit-before", "tunnel", "tunnel-ns", "tunnel-image", "output", "quiet"}
 	for _, name := range expectedFlags {
 		if now.Flags().Lookup(name) == nil {
 			t.Errorf("expected --%s flag on 'now' command", name)
 		}
+	}
+
+	// Verify short flags
+	if now.Flags().ShorthandLookup("o") == nil {
+		t.Error("expected -o shorthand for --output")
+	}
+	if now.Flags().ShorthandLookup("q") == nil {
+		t.Error("expected -q shorthand for --quiet")
+	}
+
+	// Verify defaults
+	outputFlag := now.Flags().Lookup("output")
+	if outputFlag.DefValue != "" {
+		t.Errorf("expected default output '', got %q", outputFlag.DefValue)
+	}
+	quietFlag := now.Flags().Lookup("quiet")
+	if quietFlag.DefValue != "false" {
+		t.Errorf("expected default quiet 'false', got %q", quietFlag.DefValue)
 	}
 }
 
