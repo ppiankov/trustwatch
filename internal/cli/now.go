@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -147,6 +148,11 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating gateway-api client: %w", err)
 	}
 
+	dynClient, err := dynamic.NewForConfig(restCfg)
+	if err != nil {
+		return fmt.Errorf("creating dynamic client: %w", err)
+	}
+
 	// Resolve context name for display
 	if kubeCtx == "" {
 		raw, rawErr := clientConfig.RawConfig()
@@ -195,9 +201,11 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	ingressNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "networking.k8s.io", "ingresses")
 	svcNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "services")
 	gwNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "gateway.networking.k8s.io", "gateways")
+	certNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "cert-manager.io", "certificates")
 	slog.Info("namespace access resolved", "total", len(allNS),
 		"secrets", len(secretNS), "ingresses", len(ingressNS),
-		"services", len(svcNS), "gateways", len(gwNS))
+		"services", len(svcNS), "gateways", len(gwNS),
+		"certificates", len(certNS))
 
 	// Build discoverers — probing discoverers get the tunnel probe function when --tunnel is set
 	var webhookOpts []func(*discovery.WebhookDiscoverer)
@@ -222,6 +230,7 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		discovery.NewIstioDiscoverer(clientset),
 		discovery.NewAnnotationDiscoverer(clientset, annotOpts...),
 		discovery.NewGatewayDiscoverer(gwClient, clientset, discovery.WithGatewayNamespaces(gwNS)),
+		discovery.NewCertManagerDiscoverer(dynClient, clientset, discovery.WithCertManagerNamespaces(certNS)),
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External, extOpts...))
