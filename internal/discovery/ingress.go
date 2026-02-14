@@ -14,12 +14,24 @@ import (
 
 // IngressDiscoverer finds TLS certificates referenced by Ingress objects.
 type IngressDiscoverer struct {
-	client kubernetes.Interface
+	client     kubernetes.Interface
+	namespaces []string
 }
 
 // NewIngressDiscoverer creates a discoverer that extracts TLS secrets from Ingress specs.
-func NewIngressDiscoverer(client kubernetes.Interface) *IngressDiscoverer {
-	return &IngressDiscoverer{client: client}
+func NewIngressDiscoverer(client kubernetes.Interface, opts ...func(*IngressDiscoverer)) *IngressDiscoverer {
+	d := &IngressDiscoverer{client: client}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithIngressNamespaces restricts discovery to the given namespaces.
+func WithIngressNamespaces(ns []string) func(*IngressDiscoverer) {
+	return func(d *IngressDiscoverer) {
+		d.namespaces = ns
+	}
 }
 
 // Name returns the discoverer label.
@@ -27,27 +39,28 @@ func (d *IngressDiscoverer) Name() string {
 	return "ingress"
 }
 
-// Discover lists all Ingresses, dereferences their TLS secret references,
+// Discover lists Ingresses, dereferences their TLS secret references,
 // and parses the certificates found in those secrets.
 func (d *IngressDiscoverer) Discover() ([]store.CertFinding, error) {
 	ctx := context.Background()
-
-	ingresses, err := d.client.NetworkingV1().Ingresses("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("listing ingresses: %w", err)
-	}
-
 	var findings []store.CertFinding
 
-	for i := range ingresses.Items {
-		ing := &ingresses.Items[i]
-		for _, tls := range ing.Spec.TLS {
-			if tls.SecretName == "" {
-				continue
-			}
+	for _, ns := range namespacesOrAll(d.namespaces) {
+		ingresses, err := d.client.NetworkingV1().Ingresses(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("listing ingresses: %w", err)
+		}
 
-			finding := d.findingFromIngressTLS(ctx, ing, tls)
-			findings = append(findings, finding)
+		for i := range ingresses.Items {
+			ing := &ingresses.Items[i]
+			for _, tls := range ing.Spec.TLS {
+				if tls.SecretName == "" {
+					continue
+				}
+
+				finding := d.findingFromIngressTLS(ctx, ing, tls)
+				findings = append(findings, finding)
+			}
 		}
 	}
 

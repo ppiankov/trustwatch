@@ -523,3 +523,36 @@ func TestParseExternalTargets(t *testing.T) {
 		}
 	}
 }
+
+func TestAnnotationDiscoverer_NamespaceFiltered(t *testing.T) {
+	objs := []runtime.Object{
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "svc-1", Namespace: testNS1,
+				Annotations: map[string]string{annoEnabled: "true"},
+			},
+		},
+		&corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "svc-2", Namespace: testNS2,
+				Annotations: map[string]string{annoEnabled: "true"},
+			},
+		},
+	}
+
+	d := NewAnnotationDiscoverer(fake.NewClientset(objs...),
+		WithAnnotationProbeFn(mockProbeResult(successProbeResult())),
+		WithAnnotationNamespaces([]string{testNS1}),
+	)
+
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding (ns1 only), got %d", len(findings))
+	}
+	if findings[0].Namespace != testNS1 {
+		t.Errorf("expected namespace ns1, got %q", findings[0].Namespace)
+	}
+}

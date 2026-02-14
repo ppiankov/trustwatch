@@ -19,13 +19,25 @@ import (
 type GatewayDiscoverer struct {
 	gwClient   gatewayclient.Interface
 	coreClient kubernetes.Interface
+	namespaces []string
 }
 
 // NewGatewayDiscoverer creates a discoverer that extracts TLS secrets from Gateway listener specs.
-func NewGatewayDiscoverer(gwClient gatewayclient.Interface, coreClient kubernetes.Interface) *GatewayDiscoverer {
-	return &GatewayDiscoverer{
+func NewGatewayDiscoverer(gwClient gatewayclient.Interface, coreClient kubernetes.Interface, opts ...func(*GatewayDiscoverer)) *GatewayDiscoverer {
+	d := &GatewayDiscoverer{
 		gwClient:   gwClient,
 		coreClient: coreClient,
+	}
+	for _, o := range opts {
+		o(d)
+	}
+	return d
+}
+
+// WithGatewayNamespaces restricts discovery to the given namespaces.
+func WithGatewayNamespaces(ns []string) func(*GatewayDiscoverer) {
+	return func(d *GatewayDiscoverer) {
+		d.namespaces = ns
 	}
 }
 
@@ -46,22 +58,24 @@ func (d *GatewayDiscoverer) Discover() ([]store.CertFinding, error) {
 		return nil, nil
 	}
 
-	gateways, err := d.gwClient.GatewayV1().Gateways("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("listing gateways: %w", err)
-	}
-
 	var findings []store.CertFinding
-	for i := range gateways.Items {
-		gw := &gateways.Items[i]
-		for j := range gw.Spec.Listeners {
-			listener := &gw.Spec.Listeners[j]
-			if listener.TLS == nil {
-				continue
-			}
-			for _, ref := range listener.TLS.CertificateRefs {
-				f := d.findingFromCertRef(ctx, gw, listener, ref)
-				findings = append(findings, f)
+	for _, ns := range namespacesOrAll(d.namespaces) {
+		gateways, err := d.gwClient.GatewayV1().Gateways(ns).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return nil, fmt.Errorf("listing gateways: %w", err)
+		}
+
+		for i := range gateways.Items {
+			gw := &gateways.Items[i]
+			for j := range gw.Spec.Listeners {
+				listener := &gw.Spec.Listeners[j]
+				if listener.TLS == nil {
+					continue
+				}
+				for _, ref := range listener.TLS.CertificateRefs {
+					f := d.findingFromCertRef(ctx, gw, listener, ref)
+					findings = append(findings, f)
+				}
 			}
 		}
 	}
