@@ -18,16 +18,17 @@ type SourceKind string
 
 // Source kinds for findings.
 const (
-	SourceTLSSecret  SourceKind = "k8s.tlsSecret"
-	SourceIngressTLS SourceKind = "k8s.ingressTLS"
-	SourceWebhook    SourceKind = "k8s.webhook"
-	SourceAPIService SourceKind = "k8s.apiservice"
-	SourceLinkerd    SourceKind = "mesh.linkerd"
-	SourceIstio      SourceKind = "mesh.istio"
-	SourceExternal   SourceKind = "external"
-	SourceAPIServer  SourceKind = "k8s.apiserver"
-	SourceAnnotation SourceKind = "annotation"
-	SourceGateway    SourceKind = "k8s.gateway"
+	SourceTLSSecret   SourceKind = "k8s.tlsSecret"
+	SourceIngressTLS  SourceKind = "k8s.ingressTLS"
+	SourceWebhook     SourceKind = "k8s.webhook"
+	SourceAPIService  SourceKind = "k8s.apiservice"
+	SourceLinkerd     SourceKind = "mesh.linkerd"
+	SourceIstio       SourceKind = "mesh.istio"
+	SourceExternal    SourceKind = "external"
+	SourceAPIServer   SourceKind = "k8s.apiserver"
+	SourceAnnotation  SourceKind = "annotation"
+	SourceGateway     SourceKind = "k8s.gateway"
+	SourceCertManager SourceKind = "certmanager"
 )
 
 // CertFinding represents a single trust surface observation.
