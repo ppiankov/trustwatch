@@ -27,6 +27,7 @@ const (
 	SourceExternal   SourceKind = "external"
 	SourceAPIServer  SourceKind = "k8s.apiserver"
 	SourceAnnotation SourceKind = "annotation"
+	SourceGateway    SourceKind = "k8s.gateway"
 )
 
 // CertFinding represents a single trust surface observation.
