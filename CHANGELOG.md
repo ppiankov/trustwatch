@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-02-14
+
+### Added
+- Structured logging via `slog` with `--log-level` (debug/info/warn/error) and `--log-format` (text/json) flags
+- Config validation: `Load()` now rejects invalid values (negative durations, critBefore >= warnBefore, refreshEvery < 30s)
+- Discovery error propagation: `Snapshot.Errors` tracks which discoverers failed, surfaced in metrics, JSON API, and exit code 3
+- Prometheus metric `trustwatch_discovery_errors_total{source}` for discoverer failure visibility
+- Helm: `securityContext` (runAsNonRoot, readOnlyRootFilesystem, drop ALL capabilities)
+- Helm: PodDisruptionBudget template (`podDisruptionBudget.enabled`)
+- Helm: NetworkPolicy template (`networkPolicy.enabled`)
+- Helm: NOTES.txt with post-install instructions
+- CLI integration tests
+- CLI help text with usage examples on `now` and `serve` commands
+
+### Fixed
+- HTTP server now sets read/write/idle timeouts to prevent resource exhaustion
+- Replaced `log.Fatalf` in serve goroutine with error channel for graceful shutdown
+- `/healthz` returns 503 when no scan has completed or scan is stale (was always 200)
+- Resolved all 33 golangci-lint issues (fieldalignment, package comments, errcheck, goconst, misspell)
+
 ## [0.1.1] - 2026-02-13
 
 ### Added
