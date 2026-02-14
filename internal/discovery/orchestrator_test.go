@@ -110,6 +110,13 @@ func TestOrchestrator_PartialFailure(t *testing.T) {
 	if snap.Findings[0].Name != "cert" {
 		t.Errorf("expected finding from good discoverer, got %q", snap.Findings[0].Name)
 	}
+	// Should record the error
+	if len(snap.Errors) != 1 {
+		t.Fatalf("expected 1 discovery error, got %d", len(snap.Errors))
+	}
+	if _, ok := snap.Errors["bad"]; !ok {
+		t.Error("expected error for 'bad' discoverer")
+	}
 }
 
 func TestOrchestrator_AllFailed(t *testing.T) {
@@ -122,6 +129,9 @@ func TestOrchestrator_AllFailed(t *testing.T) {
 
 	if len(snap.Findings) != 0 {
 		t.Errorf("expected 0 findings when all fail, got %d", len(snap.Findings))
+	}
+	if len(snap.Errors) != 2 {
+		t.Errorf("expected 2 discovery errors, got %d", len(snap.Errors))
 	}
 }
 

@@ -12,12 +12,13 @@ import (
 
 // Collector translates a snapshot into Prometheus gauge values.
 type Collector struct {
-	certNotAfter  *prometheus.GaugeVec
-	certExpiresIn *prometheus.GaugeVec
-	probeSuccess  *prometheus.GaugeVec
-	findingsTotal *prometheus.GaugeVec
-	scanDuration  prometheus.Gauge
-	mu            sync.Mutex
+	certNotAfter    *prometheus.GaugeVec
+	certExpiresIn   *prometheus.GaugeVec
+	probeSuccess    *prometheus.GaugeVec
+	findingsTotal   *prometheus.GaugeVec
+	discoveryErrors *prometheus.GaugeVec
+	scanDuration    prometheus.Gauge
+	mu              sync.Mutex
 }
 
 // NewCollector creates and registers metrics on the given registerer.
@@ -52,6 +53,12 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 			Name:      "findings_total",
 			Help:      "Total number of findings by severity.",
 		}, []string{"severity"}),
+
+		discoveryErrors: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "trustwatch",
+			Name:      "discovery_errors_total",
+			Help:      "Number of discoverer failures by source.",
+		}, []string{"source"}),
 	}
 
 	reg.MustRegister(c.certNotAfter)
@@ -59,6 +66,7 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 	reg.MustRegister(c.probeSuccess)
 	reg.MustRegister(c.scanDuration)
 	reg.MustRegister(c.findingsTotal)
+	reg.MustRegister(c.discoveryErrors)
 
 	return c
 }
@@ -72,6 +80,7 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 	c.certExpiresIn.Reset()
 	c.probeSuccess.Reset()
 	c.findingsTotal.Reset()
+	c.discoveryErrors.Reset()
 
 	c.scanDuration.Set(scanDuration.Seconds())
 
@@ -111,5 +120,9 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 
 	for sev, count := range counts {
 		c.findingsTotal.With(prometheus.Labels{"severity": string(sev)}).Set(float64(count))
+	}
+
+	for source := range snap.Errors {
+		c.discoveryErrors.With(prometheus.Labels{"source": source}).Set(1)
 	}
 }

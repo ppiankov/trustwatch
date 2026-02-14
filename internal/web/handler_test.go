@@ -19,17 +19,63 @@ func fixedSnapshot(findings []store.CertFinding) SnapshotFunc {
 	return func() store.Snapshot { return snap }
 }
 
-func TestHealthzHandler(t *testing.T) {
+func TestHealthzHandler_Healthy(t *testing.T) {
+	snap := store.Snapshot{At: time.Now()}
+	getSnap := func() store.Snapshot { return snap }
+
 	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
 	w := httptest.NewRecorder()
 
-	HealthzHandler()(w, req)
+	HealthzHandler(getSnap, 5*time.Minute)(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 	if got := w.Body.String(); got != "ok" {
 		t.Errorf("body = %q, want %q", got, "ok")
+	}
+}
+
+func TestHealthzHandler_NoScan(t *testing.T) {
+	snap := store.Snapshot{} // zero At
+	getSnap := func() store.Snapshot { return snap }
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	w := httptest.NewRecorder()
+
+	HealthzHandler(getSnap, 5*time.Minute)(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHealthzHandler_Stale(t *testing.T) {
+	snap := store.Snapshot{At: time.Now().Add(-10 * time.Minute)}
+	getSnap := func() store.Snapshot { return snap }
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	w := httptest.NewRecorder()
+
+	HealthzHandler(getSnap, 5*time.Minute)(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+}
+
+func TestHealthzHandler_ZeroMaxAge(t *testing.T) {
+	snap := store.Snapshot{At: time.Now().Add(-1 * time.Hour)}
+	getSnap := func() store.Snapshot { return snap }
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", http.NoBody)
+	w := httptest.NewRecorder()
+
+	// Zero maxAge disables staleness check
+	HealthzHandler(getSnap, 0)(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
 	}
 }
 

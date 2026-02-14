@@ -1,0 +1,15 @@
+trustwatch has been deployed.
+
+Web UI:     kubectl port-forward svc/{{ include "trustwatch.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+            then open http://localhost:{{ .Values.service.port }}
+
+Endpoints:
+  /            Problems dashboard
+  /metrics     Prometheus scrape
+  /healthz     Liveness/readiness
+  /api/v1/snapshot  JSON findings
+
+{{- if .Values.serviceMonitor.enabled }}
+
+ServiceMonitor is enabled — Prometheus will auto-discover the scrape target.
+{{- end }}

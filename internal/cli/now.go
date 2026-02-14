@@ -3,7 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -28,11 +28,26 @@ var nowCmd = &cobra.Command{
 	Short: "Show trust surface problems right now",
 	Long: `Discover and probe all trust surfaces, display problems in a TUI.
 
+Discovers webhooks, APIServices, TLS secrets, ingresses, mesh issuers,
+annotated services, and external targets. Probes each via TLS handshake
+and reports expiring or expired certificates.
+
 Exit codes:
   0  No problems found
   1  Warnings exist (certs expiring within warn threshold)
   2  Critical problems (certs expiring within crit threshold or expired)
   3  Discovery or probe errors`,
+	Example: `  # Scan current cluster
+  trustwatch now
+
+  # Scan a specific context with custom thresholds
+  trustwatch now --context prod --warn-before 360h --crit-before 168h
+
+  # Scan through an in-cluster SOCKS5 relay (resolves cluster DNS)
+  trustwatch now --tunnel
+
+  # Air-gapped cluster using trustwatch as its own relay
+  trustwatch now --tunnel --tunnel-image my-registry.io/trustwatch:v0.1.1 --tunnel-command /trustwatch,socks5`,
 	RunE: runNow,
 }
 
@@ -131,17 +146,17 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	var tunnelProbeFn func(string) probe.Result
 	if useTunnel {
 		relay = tunnel.NewRelay(clientset, restCfg, tunnelNS, tunnelImg, tunnelCmd, tunnelSecret)
-		log.Printf("deploying tunnel relay pod in namespace %q...", tunnelNS)
+		slog.Info("deploying tunnel relay pod", "namespace", tunnelNS)
 		if err := relay.Start(context.Background()); err != nil {
 			return fmt.Errorf("starting tunnel relay: %w", err)
 		}
-		log.Printf("tunnel ready on localhost:%d (pod %s)", relay.LocalPort(), relay.PodName())
+		slog.Info("tunnel ready", "port", relay.LocalPort(), "pod", relay.PodName())
 		tunnelProbeFn = relay.ProbeFn()
 	}
 	closeRelay := func() {
 		if relay != nil {
 			if err := relay.Close(); err != nil {
-				log.Printf("warning: cleaning up relay pod: %v", err)
+				slog.Warn("cleaning up relay pod", "err", err)
 			}
 		}
 	}
@@ -177,10 +192,10 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Run discovery
-	log.Printf("scanning %d discovery sources...", len(discoverers))
+	slog.Info("scanning discovery sources", "count", len(discoverers))
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
 	snap := orch.Run()
-	log.Printf("scan complete: %d findings", len(snap.Findings))
+	slog.Info("scan complete", "findings", len(snap.Findings))
 
 	// Display results
 	exitCode := monitor.ExitCode(snap)

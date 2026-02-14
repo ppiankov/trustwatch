@@ -73,3 +73,15 @@ func TestExitCode_ProbeErrorTakesPrecedence(t *testing.T) {
 		t.Errorf("ExitCode(probe error + critical) = %d, want 3", got)
 	}
 }
+
+func TestExitCode_DiscoveryErrors(t *testing.T) {
+	snap := store.Snapshot{
+		Findings: []store.CertFinding{
+			{Severity: store.SeverityInfo, ProbeOK: true},
+		},
+		Errors: map[string]string{"webhooks": "forbidden"},
+	}
+	if got := ExitCode(snap); got != 3 {
+		t.Errorf("ExitCode(discovery error) = %d, want 3", got)
+	}
+}

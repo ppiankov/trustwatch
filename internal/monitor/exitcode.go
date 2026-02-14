@@ -9,6 +9,9 @@ import "github.com/ppiankov/trustwatch/internal/store"
 //	2 = critical problems
 //	3 = discovery/probe errors
 func ExitCode(snap store.Snapshot) int {
+	if len(snap.Errors) > 0 {
+		return 3
+	}
 	code := 0
 	for i := range snap.Findings {
 		if !snap.Findings[i].ProbeOK {

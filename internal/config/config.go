@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -45,5 +46,28 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(b, c); err != nil {
 		return nil, err
 	}
+	if err := c.Validate(); err != nil {
+		return nil, fmt.Errorf("config validation: %w", err)
+	}
 	return c, nil
+}
+
+// Validate checks that the config values are sane.
+func (c *Config) Validate() error {
+	if c.WarnBefore <= 0 {
+		return fmt.Errorf("warnBefore must be positive, got %s", c.WarnBefore)
+	}
+	if c.CritBefore <= 0 {
+		return fmt.Errorf("critBefore must be positive, got %s", c.CritBefore)
+	}
+	if c.CritBefore >= c.WarnBefore {
+		return fmt.Errorf("critBefore (%s) must be less than warnBefore (%s)", c.CritBefore, c.WarnBefore)
+	}
+	if c.RefreshEvery < 30*time.Second {
+		return fmt.Errorf("refreshEvery must be at least 30s, got %s", c.RefreshEvery)
+	}
+	if c.ListenAddr == "" {
+		return fmt.Errorf("listenAddr must not be empty")
+	}
+	return nil
 }

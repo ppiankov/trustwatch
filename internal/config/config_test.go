@@ -71,3 +71,65 @@ func TestLoadMissing(t *testing.T) {
 		t.Error("expected error for missing file")
 	}
 }
+
+func TestValidate_DefaultsPass(t *testing.T) {
+	c := Defaults()
+	if err := c.Validate(); err != nil {
+		t.Errorf("defaults should be valid: %v", err)
+	}
+}
+
+func TestValidate_NegativeWarnBefore(t *testing.T) {
+	c := Defaults()
+	c.WarnBefore = -1 * time.Hour
+	if err := c.Validate(); err == nil {
+		t.Error("expected error for negative warnBefore")
+	}
+}
+
+func TestValidate_CritBeforeExceedsWarnBefore(t *testing.T) {
+	c := Defaults()
+	c.CritBefore = 800 * time.Hour
+	if err := c.Validate(); err == nil {
+		t.Error("expected error when critBefore >= warnBefore")
+	}
+}
+
+func TestValidate_RefreshTooFast(t *testing.T) {
+	c := Defaults()
+	c.RefreshEvery = 10 * time.Second
+	if err := c.Validate(); err == nil {
+		t.Error("expected error for refreshEvery < 30s")
+	}
+}
+
+func TestValidate_EmptyListenAddr(t *testing.T) {
+	c := Defaults()
+	c.ListenAddr = ""
+	if err := c.Validate(); err == nil {
+		t.Error("expected error for empty listenAddr")
+	}
+}
+
+func TestLoadInvalidConfig(t *testing.T) {
+	content := `
+listenAddr: ":9090"
+critBefore: "800h"
+warnBefore: "720h"
+`
+	f, err := os.CreateTemp("", "trustwatch-invalid-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, writeErr := f.WriteString(content); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	f.Close()
+
+	_, err = Load(f.Name())
+	if err == nil {
+		t.Error("expected validation error when critBefore > warnBefore")
+	}
+}
