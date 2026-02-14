@@ -32,7 +32,7 @@
 </div>
 <table>
 <thead>
-<tr><th>Severity</th><th>Source</th><th>Where</th><th>Expires In</th><th>Not After</th><th>Risk</th><th>Error</th></tr>
+<tr><th>Severity</th><th>Source</th><th>Where</th><th>Expires In</th><th>Not After</th><th>Risk</th><th>Chain</th><th>Error</th></tr>
 </thead>
 <tbody>
 {{range .Findings}}
@@ -43,6 +43,7 @@
   <td>{{.ExpiresIn}}</td>
   <td>{{.NotAfter}}</td>
   <td>{{.Risk}}</td>
+  <td>{{.ChainErrors}}</td>
   <td>{{.Error}}</td>
 </tr>
 {{end}}

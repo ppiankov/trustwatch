@@ -144,10 +144,8 @@ func (d *GatewayDiscoverer) findingFromCertRef(
 		return finding
 	}
 
-	cert, err := parsePEMCert(pemData)
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(&finding, pemData, "")
+	if cert == nil {
 		return finding
 	}
 

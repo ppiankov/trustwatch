@@ -17,6 +17,7 @@ type Collector struct {
 	probeSuccess    *prometheus.GaugeVec
 	findingsTotal   *prometheus.GaugeVec
 	discoveryErrors *prometheus.GaugeVec
+	chainErrors     *prometheus.GaugeVec
 	scanDuration    prometheus.Gauge
 	mu              sync.Mutex
 }
@@ -59,6 +60,12 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 			Name:      "discovery_errors_total",
 			Help:      "Number of discoverer failures by source.",
 		}, []string{"source"}),
+
+		chainErrors: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: "trustwatch",
+			Name:      "chain_errors_total",
+			Help:      "Number of findings with chain validation errors by source.",
+		}, []string{"source"}),
 	}
 
 	reg.MustRegister(c.certNotAfter)
@@ -67,6 +74,7 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 	reg.MustRegister(c.scanDuration)
 	reg.MustRegister(c.findingsTotal)
 	reg.MustRegister(c.discoveryErrors)
+	reg.MustRegister(c.chainErrors)
 
 	return c
 }
@@ -81,6 +89,7 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 	c.probeSuccess.Reset()
 	c.findingsTotal.Reset()
 	c.discoveryErrors.Reset()
+	c.chainErrors.Reset()
 
 	c.scanDuration.Set(scanDuration.Seconds())
 
@@ -90,9 +99,14 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 		store.SeverityCritical: 0,
 	}
 
+	chainErrorCounts := make(map[store.SourceKind]int)
+
 	for i := range snap.Findings {
 		f := &snap.Findings[i]
 		counts[f.Severity]++
+		if len(f.ChainErrors) > 0 {
+			chainErrorCounts[f.Source]++
+		}
 
 		labels := prometheus.Labels{
 			"source":    string(f.Source),
@@ -124,5 +138,9 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 
 	for source := range snap.Errors {
 		c.discoveryErrors.With(prometheus.Labels{"source": source}).Set(1)
+	}
+
+	for source, count := range chainErrorCounts {
+		c.chainErrors.With(prometheus.Labels{"source": string(source)}).Set(float64(count))
 	}
 }

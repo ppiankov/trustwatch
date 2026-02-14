@@ -96,10 +96,12 @@ func (d *IngressDiscoverer) findingFromIngressTLS(ctx context.Context, ing *netw
 		return finding
 	}
 
-	cert, err := parsePEMCert(pemData)
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	hostname := ""
+	if len(tls.Hosts) > 0 {
+		hostname = tls.Hosts[0]
+	}
+	cert := applyPEMChainValidation(&finding, pemData, hostname)
+	if cert == nil {
 		return finding
 	}
 

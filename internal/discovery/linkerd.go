@@ -84,10 +84,8 @@ func (d *LinkerdDiscoverer) discoverTrustRoots(ctx context.Context) (*store.Cert
 		return &finding, nil
 	}
 
-	cert, err := parsePEMCert([]byte(pemData))
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(&finding, []byte(pemData), "")
+	if cert == nil {
 		return &finding, nil
 	}
 
@@ -123,10 +121,8 @@ func (d *LinkerdDiscoverer) discoverIssuer(ctx context.Context) (*store.CertFind
 		return &finding, nil
 	}
 
-	cert, err := parsePEMCert(pemData)
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(&finding, pemData, "")
+	if cert == nil {
 		return &finding, nil
 	}
 

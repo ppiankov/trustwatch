@@ -142,10 +142,8 @@ func (d *IstioDiscoverer) discoverRootCertCM(ctx context.Context) (*store.CertFi
 		return &finding, nil
 	}
 
-	cert, err := parsePEMCert([]byte(pemData))
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(&finding, []byte(pemData), "")
+	if cert == nil {
 		return &finding, nil
 	}
 
@@ -174,10 +172,8 @@ func (d *IstioDiscoverer) parseCertFromSecret(data map[string][]byte, key, secre
 		return nil
 	}
 
-	cert, err := parsePEMCert(pemData)
-	if err != nil {
-		finding.ProbeOK = false
-		finding.ProbeErr = err.Error()
+	cert := applyPEMChainValidation(&finding, pemData, "")
+	if cert == nil {
 		return &finding
 	}
 
