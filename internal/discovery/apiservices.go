@@ -56,8 +56,27 @@ func (d *APIServiceDiscoverer) Discover() ([]store.CertFinding, error) {
 	var findings []store.CertFinding
 
 	for i := range apiServices.Items {
-		svc := apiServices.Items[i].Spec.Service
+		spec := &apiServices.Items[i].Spec
+		svc := spec.Service
 		if svc == nil {
+			continue
+		}
+
+		// When the API server skips TLS verification, an expired cert won't
+		// break anything — report for inventory but don't probe or escalate.
+		if spec.InsecureSkipTLSVerify {
+			port := int32(defaultAPIServicePort)
+			if svc.Port != nil {
+				port = *svc.Port
+			}
+			findings = append(findings, store.CertFinding{
+				Source:    store.SourceAPIService,
+				Severity:  store.SeverityInfo,
+				Namespace: svc.Namespace,
+				Name:      apiServices.Items[i].Name,
+				Target:    fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, port),
+				Notes:     "insecureSkipTLSVerify=true",
+			})
 			continue
 		}
 
