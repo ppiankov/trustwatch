@@ -255,8 +255,10 @@ trustwatch
 │   └── JSON API
 └── Severity
     ├── Critical: expired, webhook Fail, within crit threshold
-    ├── Warn: within warn threshold, webhook Ignore (capped), insecureSkipTLSVerify
+    ├── Warn: within warn threshold, webhook Ignore (capped¹), insecureSkipTLSVerify
     └── Info: inventory (metrics only)
+
+¹ Webhooks with failurePolicy=Ignore are capped at Warn because they do not block admission.
 ```
 
 ## Security Model
@@ -286,6 +288,13 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - **`now` mode**: Snapshot exists only in memory for the duration of the TUI session. Nothing is written to disk.
 - **`serve` mode**: The latest snapshot is held in memory and served via `/api/v1/snapshot`. No historical data is stored. Prometheus metrics are exported for external retention.
 - **No PII**: trustwatch stores certificate metadata (subject, issuer, SANs, serial, expiry). It does not store certificate private keys, request bodies, or user data.
+
+## Stability
+
+- **Metric names** (`trustwatch_*`) may change before v1.0
+- **Annotation keys** (`trustwatch.dev/*`) are stable from v0.2+
+- **Exit codes** (0/1/2/3) are stable from v0.1+
+- **JSON API** (`/api/v1/snapshot`) schema may gain fields but will not remove them before v1.0
 
 ## Known Limitations
 
