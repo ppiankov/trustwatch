@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -31,6 +31,9 @@ import (
 const (
 	shutdownTimeout   = 5 * time.Second
 	readHeaderTimeout = 10 * time.Second
+	readTimeout       = 30 * time.Second
+	writeTimeout      = 60 * time.Second
+	idleTimeout       = 120 * time.Second
 	defaultConfigPath = "/etc/trustwatch/config.yaml"
 )
 
@@ -39,11 +42,24 @@ var serveCmd = &cobra.Command{
 	Short: "Run as in-cluster service with web UI and /metrics",
 	Long: `Start trustwatch as a long-running service inside a Kubernetes cluster.
 
-Exposes:
-  /         Problems web UI (only expiring/failed trust surfaces)
-  /metrics  Prometheus scrape endpoint
-  /healthz  Liveness probe
+Runs a background scan loop and serves results over HTTP.
+
+Endpoints:
+  /               Problems web UI (only expiring/failed trust surfaces)
+  /metrics        Prometheus scrape endpoint
+  /healthz        Liveness probe (returns 503 if scan is stale)
   /api/v1/snapshot  JSON snapshot of all findings`,
+	Example: `  # Run with default config
+  trustwatch serve
+
+  # Run with custom config file
+  trustwatch serve --config /etc/trustwatch/config.yaml
+
+  # Override listen address
+  trustwatch serve --listen :9090
+
+  # Run with JSON logging for log aggregation
+  trustwatch serve --log-format json --log-level debug`,
 	RunE: runServe,
 }
 
@@ -143,7 +159,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	// HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", web.UIHandler(getSnapshot))
-	mux.HandleFunc("/healthz", web.HealthzHandler())
+	mux.HandleFunc("/healthz", web.HealthzHandler(getSnapshot, 2*cfg.RefreshEvery))
 	mux.HandleFunc("/api/v1/snapshot", web.SnapshotHandler(getSnapshot))
 	mux.Handle(cfg.MetricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 
@@ -151,6 +167,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		Addr:              cfg.ListenAddr,
 		Handler:           mux,
 		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
 	}
 
 	// Graceful shutdown
@@ -181,8 +200,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 				errCount++
 			}
 		}
-		log.Printf("scan complete: %d findings (critical=%d warn=%d errors=%d) in %s",
-			len(snap.Findings), critCount, warnCount, errCount, duration.Round(time.Millisecond))
+		slog.Info("scan complete", "findings", len(snap.Findings),
+			"critical", critCount, "warn", warnCount, "errors", errCount,
+			"duration", duration.Round(time.Millisecond))
 	}
 
 	// Run initial scan
@@ -200,7 +220,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 				func() {
 					defer func() {
 						if r := recover(); r != nil {
-							log.Printf("scan panic recovered: %v", r)
+							slog.Error("scan panic recovered", "panic", r)
 						}
 					}()
 					scan()
@@ -210,16 +230,21 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}()
 
 	// Start HTTP server
+	srvErr := make(chan error, 1)
 	go func() {
-		log.Printf("trustwatch serve %s listening on %s", version, cfg.ListenAddr)
+		slog.Info("trustwatch serve listening", "version", version, "addr", cfg.ListenAddr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("HTTP server error: %v", err)
+			srvErr <- fmt.Errorf("HTTP server error: %w", err)
 		}
 	}()
 
-	// Wait for shutdown signal
-	<-ctx.Done()
-	log.Println("shutting down...")
+	// Wait for shutdown signal or server error
+	select {
+	case <-ctx.Done():
+	case err := <-srvErr:
+		return err
+	}
+	slog.Info("shutting down")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
@@ -228,7 +253,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("server shutdown: %w", err)
 	}
 
-	log.Println("shutdown complete")
+	slog.Info("shutdown complete")
 	return nil
 }
 

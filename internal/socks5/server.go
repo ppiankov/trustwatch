@@ -9,7 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"sync"
 )
@@ -56,7 +56,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		ln.Close()
 	}()
 
-	log.Printf("socks5 listening on %s", ln.Addr())
+	slog.Info("socks5 listening", "addr", ln.Addr())
 
 	for {
 		conn, acceptErr := ln.Accept()

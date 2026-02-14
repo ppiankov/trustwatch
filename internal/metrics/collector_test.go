@@ -203,3 +203,34 @@ func TestUpdate_ProbeFailed(t *testing.T) {
 		t.Errorf("probe_success = %v, want 0", probeOK)
 	}
 }
+
+func TestUpdate_DiscoveryErrors(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c := NewCollector(reg)
+
+	snap := store.Snapshot{
+		At:     time.Now(),
+		Errors: map[string]string{"webhooks": "forbidden", "apiservices": "timeout"},
+	}
+	c.Update(snap, time.Second)
+
+	webhookErr := testutil.ToFloat64(c.discoveryErrors.With(prometheus.Labels{"source": "webhooks"}))
+	if webhookErr != 1 {
+		t.Errorf("discovery_errors_total{source=webhooks} = %v, want 1", webhookErr)
+	}
+
+	apiSvcErr := testutil.ToFloat64(c.discoveryErrors.With(prometheus.Labels{"source": "apiservices"}))
+	if apiSvcErr != 1 {
+		t.Errorf("discovery_errors_total{source=apiservices} = %v, want 1", apiSvcErr)
+	}
+
+	// Update without errors — should reset
+	snap2 := store.Snapshot{At: time.Now()}
+	c.Update(snap2, time.Second)
+
+	// After reset, the metric should have no series for webhooks
+	count := testutil.CollectAndCount(c.discoveryErrors)
+	if count != 0 {
+		t.Errorf("discovery_errors_total should have 0 series after reset, got %d", count)
+	}
+}

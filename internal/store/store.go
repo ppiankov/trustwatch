@@ -46,6 +46,7 @@ type CertFinding struct {
 
 // Snapshot is a point-in-time collection of findings.
 type Snapshot struct {
-	At       time.Time     `json:"at"`
-	Findings []CertFinding `json:"findings"`
+	At       time.Time         `json:"at"`
+	Findings []CertFinding     `json:"findings"`
+	Errors   map[string]string `json:"errors,omitempty"` // discoverer name → error message
 }

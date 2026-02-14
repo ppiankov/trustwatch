@@ -1,7 +1,7 @@
 package discovery
 
 import (
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -52,22 +52,28 @@ func (o *Orchestrator) Run() store.Snapshot {
 
 	now := o.nowFn()
 	var allFindings []store.CertFinding
+	discoveryErrors := make(map[string]string)
 
 	for r := range ch {
 		if r.err != nil {
-			log.Printf("discoverer %s failed: %v", r.name, r.err)
+			slog.Warn("discoverer failed", "source", r.name, "err", r.err)
+			discoveryErrors[r.name] = r.err.Error()
 			continue
 		}
-		log.Printf("discoverer %s: %d findings", r.name, len(r.findings))
+		slog.Debug("discoverer complete", "source", r.name, "findings", len(r.findings))
 		allFindings = append(allFindings, r.findings...)
 	}
 
 	o.classifyFindings(allFindings, now)
 
-	return store.Snapshot{
+	snap := store.Snapshot{
 		At:       now,
 		Findings: allFindings,
 	}
+	if len(discoveryErrors) > 0 {
+		snap.Errors = discoveryErrors
+	}
+	return snap
 }
 
 // classifyFindings applies severity based on time thresholds.

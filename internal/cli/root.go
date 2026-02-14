@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"log/slog"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +22,45 @@ var rootCmd = &cobra.Command{
 It finds expiring certificates on admission webhooks, API aggregation endpoints,
 service mesh issuers, annotated services, and external dependencies — then reports
 only the ones that matter.`,
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		return setupLogging(cmd)
+	},
+}
+
+func init() {
+	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
+	rootCmd.PersistentFlags().String("log-format", "text", "Log format (text, json)")
+}
+
+func setupLogging(cmd *cobra.Command) error {
+	levelStr, _ := cmd.Flags().GetString("log-level")   //nolint:errcheck // flag registered above
+	formatStr, _ := cmd.Flags().GetString("log-format") //nolint:errcheck // flag registered above
+
+	var level slog.Level
+	switch levelStr {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
+	switch formatStr {
+	case "json":
+		handler = slog.NewJSONHandler(os.Stderr, opts)
+	default:
+		handler = slog.NewTextHandler(os.Stderr, opts)
+	}
+
+	slog.SetDefault(slog.New(handler))
+	return nil
 }
 
 // Execute runs the root command.

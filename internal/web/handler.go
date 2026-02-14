@@ -93,11 +93,26 @@ func SnapshotHandler(getSnapshot SnapshotFunc) http.HandlerFunc {
 	}
 }
 
-// HealthzHandler returns 200 with body "ok".
-func HealthzHandler() http.HandlerFunc {
+// HealthzHandler returns 200 when a scan has completed within maxAge, 503 otherwise.
+// A zero maxAge disables staleness checks (always healthy if any scan completed).
+func HealthzHandler(getSnapshot SnapshotFunc, maxAge time.Duration) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("ok")) //nolint:errcheck // best-effort response
+		snap := getSnapshot()
+
+		if snap.At.IsZero() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("no scan completed")) //nolint:errcheck // best-effort response body
+			return
+		}
+
+		if maxAge > 0 && time.Since(snap.At) > maxAge {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("scan stale")) //nolint:errcheck // best-effort response body
+			return
+		}
+
+		w.Write([]byte("ok")) //nolint:errcheck // best-effort response body
 	}
 }
 

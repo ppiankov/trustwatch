@@ -32,7 +32,8 @@ func Probe(raw string) Result {
 
 // ProbeWithDialer is like Probe but uses the provided dial function for the
 // underlying TCP connection. This allows routing through a SOCKS5 proxy or
-// any other custom transport.
+// ProbeWithDialer performs a TLS handshake using a custom dial function.
+// This enables routing probes through a SOCKS5 tunnel or any other custom transport.
 //
 //nolint:revive // "ProbeWithDialer" is clearer than "WithDialer" despite stutter
 func ProbeWithDialer(raw string, dialFn DialContextFunc) Result {

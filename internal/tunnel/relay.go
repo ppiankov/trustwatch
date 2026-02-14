@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -90,12 +90,12 @@ func (r *Relay) Start(ctx context.Context) error {
 		}
 		if p.Status.Phase != lastPhase {
 			lastPhase = p.Status.Phase
-			log.Printf("relay pod %s: %s", r.podName, lastPhase)
+			slog.Debug("relay pod status", "pod", r.podName, "phase", lastPhase)
 		}
 		// Extract container-level detail for better error messages
 		lastReason = containerWaitReason(p)
 		if lastReason != "" && lastReason != "ContainerCreating" && lastReason != "PodInitializing" {
-			log.Printf("relay pod %s: container: %s", r.podName, lastReason)
+			slog.Debug("relay pod container", "pod", r.podName, "reason", lastReason)
 		}
 		if p.Status.Phase == corev1.PodFailed {
 			msg := "relay pod failed"
