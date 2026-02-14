@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-02-14
+
+### Added
+- `trustwatch rules` command: generates static PrometheusRule YAML for Prometheus Operator (no cluster connection needed)
+- Flags: `--warn-before`, `--crit-before`, `--name`, `--namespace`, `--labels` for customizing generated rules
+- Alert rules: `TrustwatchCertExpiringSoon`, `TrustwatchCertExpiryCritical`, `TrustwatchCertExpired`, `TrustwatchProbeFailed`, `TrustwatchDiscoveryErrors`
+- cert-manager Certificate CR discovery via dynamic client (graceful skip if CRDs absent)
+- cert-manager `status.notAfter` extraction with fallback to Secret PEM parsing
+- Webhook notifications in serve mode: generic JSON POST and Slack incoming webhooks
+- Notification config: severity filtering, cooldown-based deduplication, escalation detection (warn→critical)
+- Helm: PrometheusRule template (`prometheusRule.enabled`)
+- Helm: notification config in values and ConfigMap
+- Helm RBAC: `cert-manager.io` certificates list/watch
+
 ## [0.1.3] - 2026-02-14
 
 ### Added

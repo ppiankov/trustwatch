@@ -27,7 +27,7 @@ docker pull ghcr.io/ppiankov/trustwatch:latest
 
 # Or build locally
 make docker-build IMAGE=my-registry.io/trustwatch
-docker push my-registry.io/trustwatch:v0.1.3
+docker push my-registry.io/trustwatch:v0.1.4
 ```
 
 Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on each release. The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
@@ -71,6 +71,7 @@ Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on 
 | Linkerd | Trust roots + issuer Secret | Expiry breaks mesh identity |
 | Istio | CA/root/intermediate materials | Expiry breaks mesh identity |
 | Gateway API | `Gateway` listener TLS certificate refs | Expiry breaks gateway routing |
+| cert-manager | `Certificate` CR expiry via dynamic client | Expiry breaks managed certs |
 
 ### Opt-In (annotation-driven)
 
@@ -181,7 +182,7 @@ trustwatch includes a built-in SOCKS5 server. If the trustwatch image is already
 
 ```bash
 trustwatch now --tunnel \
-  --tunnel-image my-registry.io/trustwatch:v0.1.3 \
+  --tunnel-image my-registry.io/trustwatch:v0.1.4 \
   --tunnel-command /trustwatch,socks5
 ```
 
@@ -224,6 +225,20 @@ helm install trustwatch charts/trustwatch \
   --set serviceMonitor.enabled=true
 ```
 
+Enable PrometheusRule alerts:
+
+```bash
+helm install trustwatch charts/trustwatch \
+  --namespace trustwatch --create-namespace \
+  --set prometheusRule.enabled=true
+```
+
+Or generate PrometheusRule YAML without Helm:
+
+```bash
+trustwatch rules --namespace monitoring --name trustwatch-alerts
+```
+
 Enable Grafana dashboard (auto-imported via sidecar):
 
 ```bash
@@ -263,6 +278,15 @@ critBefore: "336h"    # 14 days
 namespaces: []         # empty = all
 external:
   - url: "https://vault.internal:8200"
+notifications:
+  enabled: false
+  webhooks:
+    - url: "https://hooks.slack.com/services/T/B/x"
+      type: slack
+    - url: "https://alerts.example.com/trustwatch"
+      type: generic
+  severities: ["critical", "warn"]
+  cooldown: "1h"
 ```
 
 ## Architecture
@@ -277,6 +301,7 @@ trustwatch
 │   ├── Linkerd identity (trust roots + issuer)
 │   ├── Istio CA materials
 │   ├── Gateway API TLS refs
+│   ├── cert-manager Certificates
 │   └── Annotations (trustwatch.dev/*)
 ├── Probing (TLS handshake)
 │   ├── In-cluster endpoints
@@ -286,7 +311,8 @@ trustwatch
 │   ├── TUI (now mode)
 │   ├── Web UI (serve mode)
 │   ├── Prometheus metrics
-│   └── JSON API
+│   ├── JSON API
+│   └── Notifications (Slack, generic webhook)
 └── Severity
     ├── Critical: expired, webhook Fail, within crit threshold
     ├── Warn: within warn threshold, webhook Ignore (capped¹), insecureSkipTLSVerify
@@ -309,6 +335,7 @@ trustwatch needs **read-only** cluster-wide access. The Helm chart creates a Clu
 | `apps` | deployments | list, watch |
 | `networking.k8s.io` | ingresses | list, watch |
 | `gateway.networking.k8s.io` | gateways | list, watch |
+| `cert-manager.io` | certificates | list, watch |
 | `authorization.k8s.io` | selfsubjectaccessreviews | create |
 
 When `--namespace` is used, trustwatch probes its own permissions via `SelfSubjectAccessReview` and silently skips namespaces where it lacks access. This allows namespace-scoped RBAC without 403 errors in the output.
@@ -340,7 +367,7 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - Cannot probe endpoints blocked by NetworkPolicy from trustwatch's namespace
 - Mesh leaf/workload certs (24h default) are intentionally ignored to avoid noise
 - No TrustPolicy CRD yet — annotations and ConfigMap only (CRD on roadmap)
-- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services, gateways
+- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services, gateways, certificates
 - `--tunnel` mode may log `connection reset by peer` errors from the Kubernetes port-forward layer — these are cosmetic and caused by unreachable probe targets closing the SOCKS5 connection; probe results are unaffected
 
 ## Roadmap
@@ -361,8 +388,9 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - [x] Gateway API TLS discovery
 - [x] Namespace-scoped RBAC with access probing
 - [x] Grafana dashboard (Helm chart)
-- [ ] `rules` command (generate PrometheusRule YAML)
-- [ ] cert-manager Certificate CR awareness
+- [x] `rules` command (generate PrometheusRule YAML)
+- [x] cert-manager Certificate CR discovery
+- [x] Webhook and Slack notifications
 - [ ] TrustPolicy CRD (future)
 
 ## License
