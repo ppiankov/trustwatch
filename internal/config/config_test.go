@@ -111,6 +111,54 @@ func TestValidate_EmptyListenAddr(t *testing.T) {
 	}
 }
 
+func TestLoadNotificationConfig(t *testing.T) {
+	content := `
+listenAddr: ":8080"
+notifications:
+  enabled: true
+  webhooks:
+    - url: "https://hooks.slack.com/services/T/B/x"
+      type: slack
+    - url: "https://alerts.example.com/trustwatch"
+      type: generic
+  severities: ["critical", "warn"]
+  cooldown: "30m"
+`
+	f, err := os.CreateTemp("", "trustwatch-notify-*.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, writeErr := f.WriteString(content); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	f.Close()
+
+	c, err := Load(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Notifications.Enabled {
+		t.Error("expected notifications.enabled to be true")
+	}
+	if len(c.Notifications.Webhooks) != 2 {
+		t.Fatalf("expected 2 webhooks, got %d", len(c.Notifications.Webhooks))
+	}
+	if c.Notifications.Webhooks[0].Type != "slack" {
+		t.Errorf("expected first webhook type 'slack', got %q", c.Notifications.Webhooks[0].Type)
+	}
+	if c.Notifications.Webhooks[1].Type != "generic" {
+		t.Errorf("expected second webhook type 'generic', got %q", c.Notifications.Webhooks[1].Type)
+	}
+	if len(c.Notifications.Severities) != 2 {
+		t.Errorf("expected 2 severities, got %d", len(c.Notifications.Severities))
+	}
+	if c.Notifications.Cooldown != 30*time.Minute {
+		t.Errorf("expected cooldown 30m, got %v", c.Notifications.Cooldown)
+	}
+}
+
 func TestLoadInvalidConfig(t *testing.T) {
 	content := `
 listenAddr: ":9090"

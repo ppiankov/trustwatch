@@ -40,6 +40,11 @@ config:
   critBefore: "336h"           # 14 days — findings within this are critical
   namespaces: []               # Empty = scan all namespaces
   external: []                 # External TLS targets, e.g. [{url: "https://vault:8200"}]
+  notifications:
+    enabled: false
+    webhooks: []               # [{url: "https://hooks.slack.com/...", type: "slack"}]
+    severities: ["critical", "warn"]
+    cooldown: "1h"
 
 # Container resource requests and limits.
 resources:
@@ -64,6 +69,13 @@ podDisruptionBudget:
 # Allows: inbound HTTP (scrape + UI), outbound DNS + Kubernetes API.
 networkPolicy:
   enabled: false
+
+# PrometheusRule — generates alert rules when enabled.
+prometheusRule:
+  enabled: false
+  labels: {}
+  warnSeconds: 2592000   # 30d
+  critSeconds: 1209600   # 14d
 
 # Prometheus Operator ServiceMonitor for auto-discovery.
 serviceMonitor:

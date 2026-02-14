@@ -15,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -25,6 +26,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
 	"github.com/ppiankov/trustwatch/internal/metrics"
+	"github.com/ppiankov/trustwatch/internal/notify"
 	"github.com/ppiankov/trustwatch/internal/store"
 	"github.com/ppiankov/trustwatch/internal/web"
 )
@@ -128,6 +130,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating gateway-api client: %w", err)
 	}
 
+	dynClient, err := dynamic.NewForConfig(restCfg)
+	if err != nil {
+		return fmt.Errorf("creating dynamic client: %w", err)
+	}
+
 	// Derive API server host from kubeconfig for local probing
 	apiServerTarget := apiServerFromHost(restCfg.Host)
 
@@ -141,9 +148,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	ingressNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "networking.k8s.io", "ingresses")
 	svcNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "services")
 	gwNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "gateway.networking.k8s.io", "gateways")
+	certNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "cert-manager.io", "certificates")
 	slog.Info("namespace access resolved", "total", len(allNS),
 		"secrets", len(secretNS), "ingresses", len(ingressNS),
-		"services", len(svcNS), "gateways", len(gwNS))
+		"services", len(svcNS), "gateways", len(gwNS),
+		"certificates", len(certNS))
 
 	// Build discoverers
 	discoverers := []discovery.Discoverer{
@@ -156,6 +165,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		discovery.NewIstioDiscoverer(clientset),
 		discovery.NewAnnotationDiscoverer(clientset, discovery.WithAnnotationNamespaces(svcNS)),
 		discovery.NewGatewayDiscoverer(gwClient, clientset, discovery.WithGatewayNamespaces(gwNS)),
+		discovery.NewCertManagerDiscoverer(dynClient, clientset, discovery.WithCertManagerNamespaces(certNS)),
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External))
@@ -163,9 +173,13 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
 
+	// Notifications (nil if not configured)
+	notifier := notify.New(cfg.Notifications)
+
 	// Shared state: mutex-protected snapshot
 	var mu sync.RWMutex
 	var currentSnap store.Snapshot
+	var previousSnap store.Snapshot
 
 	getSnapshot := func() store.Snapshot {
 		mu.RLock()
@@ -204,10 +218,16 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		duration := time.Since(start)
 
 		mu.Lock()
+		previousSnap = currentSnap
 		currentSnap = snap
+		prev := previousSnap
 		mu.Unlock()
 
 		collector.Update(snap, duration)
+
+		if notifier != nil {
+			notifier.Notify(prev, snap)
+		}
 
 		var critCount, warnCount, errCount int
 		for i := range snap.Findings {
