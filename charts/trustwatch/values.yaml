@@ -70,3 +70,11 @@ serviceMonitor:
   enabled: false
   interval: 30s     # Scrape interval
   labels: {}        # Extra labels for ServiceMonitor selection
+
+# Grafana dashboard — auto-imported via sidecar when enabled.
+grafanaDashboard:
+  enabled: false
+  labels:
+    grafana_dashboard: "1"
+  folder: ""
+  annotations: {}
