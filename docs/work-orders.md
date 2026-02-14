@@ -451,6 +451,51 @@ Currently the same cert can appear 3 times in output — once per discoverer tha
 
 ---
 
+### WO-T27: Certificate chain validation
+
+**Goal**: Detect broken certificate chains — not just expiry. A cert can be unexpired but have a broken chain, revoked issuer, or wrong SAN. That's a real outage cause trustwatch currently misses.
+
+**Validation checks**:
+- Chain completeness: leaf → intermediate(s) → root. Flag if any link missing
+- Chain order: certs in `tls.crt` must be leaf-first. Flag misordered bundles
+- Issuer match: each cert's `Issuer` must match the next cert's `Subject`
+- SAN coverage: for Ingress/Gateway findings, verify the hostname appears in leaf SANs
+- Self-signed detection: flag self-signed certs in non-CA positions
+
+**Behavior**:
+- Run chain validation after TLS probe or Secret parse (both provide raw cert bytes)
+- New finding types: `BROKEN_CHAIN`, `WRONG_SAN`, `SELF_SIGNED_LEAF`, `MISORDERED_CHAIN`
+- Severity: `BROKEN_CHAIN` = critical, `WRONG_SAN` = critical, `SELF_SIGNED_LEAF` = warn, `MISORDERED_CHAIN` = warn
+- Chain validation runs against system trust store by default, configurable via `--ca-bundle`
+
+**Files**:
+- `internal/probe/chain.go` — chain validation logic
+- `internal/probe/chain_test.go`
+- `internal/store/types.go` — new finding types
+
+**Verification**: `make test` passes, deliberately broken chain produces `BROKEN_CHAIN` finding.
+
+---
+
+### WO-T28: Signed container images and SBOM
+
+**Goal**: Sign container images with Cosign/Sigstore and attach SBOM attestation. Table stakes for security tooling.
+
+**Steps**:
+1. Add `cosign sign` step to release workflow after image push
+2. Generate SBOM with `syft` during build
+3. Attach SBOM as Cosign attestation: `cosign attest --predicate sbom.spdx.json`
+4. Document verification: `cosign verify ghcr.io/ppiankov/trustwatch:v0.x.x`
+5. Add verification instructions to README install section
+
+**Files**:
+- `.github/workflows/release.yml` — add cosign sign + attest steps
+- `README.md` — add verification section
+
+**Verification**: `cosign verify` succeeds on published image, SBOM attestation retrievable.
+
+---
+
 ## Execution Order
 
 ```
@@ -469,4 +514,4 @@ WO-T10 → WO-T11 + WO-T12 + WO-T13       (aggregation + output)
 
 Critical path: T01 → T02 → T10 → T11 → T14 (minimum viable `now` + `serve`).
 
-Next priorities: T25 (cert-manager) → T26 (dedup) → T17 (rules command).
+Next priorities: T25 (cert-manager) → T26 (dedup) → T27 (chain validation) → T17 (rules) → T28 (signed images).
