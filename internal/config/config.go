@@ -1,3 +1,4 @@
+// Package config provides YAML configuration loading and validation.
 package config
 
 import (
@@ -15,13 +16,13 @@ type ExternalTarget struct {
 
 // Config holds trustwatch runtime configuration.
 type Config struct {
-	ListenAddr   string           `yaml:"listenAddr"`   // default ":8080"
-	MetricsPath  string           `yaml:"metricsPath"`  // default "/metrics"
-	RefreshEvery time.Duration    `yaml:"refreshEvery"` // default 2m
-	WarnBefore   time.Duration    `yaml:"warnBefore"`   // default 720h (30d)
-	CritBefore   time.Duration    `yaml:"critBefore"`   // default 336h (14d)
-	Namespaces   []string         `yaml:"namespaces"`   // empty = all
+	ListenAddr   string           `yaml:"listenAddr"`
+	MetricsPath  string           `yaml:"metricsPath"`
+	Namespaces   []string         `yaml:"namespaces"`
 	External     []ExternalTarget `yaml:"external"`
+	RefreshEvery time.Duration    `yaml:"refreshEvery"`
+	WarnBefore   time.Duration    `yaml:"warnBefore"`
+	CritBefore   time.Duration    `yaml:"critBefore"`
 }
 
 // Defaults returns a Config with sane defaults.

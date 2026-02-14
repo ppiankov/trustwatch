@@ -17,6 +17,8 @@ import (
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
+const testProbeErrConnRefused = "connection refused"
+
 func mockProbeResult(result probe.Result) func(string) probe.Result {
 	return func(_ string) probe.Result { return result }
 }
@@ -35,7 +37,7 @@ func successProbeResult() probe.Result {
 }
 
 func failProbeResult() probe.Result {
-	return probe.Result{ProbeOK: false, ProbeErr: "connection refused"}
+	return probe.Result{ProbeOK: false, ProbeErr: testProbeErrConnRefused}
 }
 
 func TestAnnotationDiscoverer_ImplementsDiscoverer(_ *testing.T) {
@@ -449,8 +451,8 @@ func TestAnnotationDiscoverer_ProbeFailure(t *testing.T) {
 	if f.ProbeOK {
 		t.Error("expected ProbeOK=false")
 	}
-	if f.ProbeErr != "connection refused" {
-		t.Errorf("expected ProbeErr %q, got %q", "connection refused", f.ProbeErr)
+	if f.ProbeErr != testProbeErrConnRefused {
+		t.Errorf("expected ProbeErr %q, got %q", testProbeErrConnRefused, f.ProbeErr)
 	}
 }
 

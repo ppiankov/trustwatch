@@ -248,7 +248,7 @@ func TestOrchestrator_WebhookEscalation(t *testing.T) {
 			Name:     "ignore-webhook",
 			NotAfter: now.Add(20 * 24 * time.Hour), // 20 days (in warn zone)
 			ProbeOK:  true,
-			Notes:    "failurePolicy=Ignore",
+			Notes:    notesFailPolicyIgnore,
 		},
 	}
 
@@ -283,7 +283,7 @@ func TestOrchestrator_IgnoreWebhookSeverityCap(t *testing.T) {
 			Name:     "expired-ignore-webhook",
 			NotAfter: now.Add(-24 * time.Hour), // expired
 			ProbeOK:  true,
-			Notes:    "failurePolicy=Ignore",
+			Notes:    notesFailPolicyIgnore,
 		},
 		{
 			Source:   store.SourceWebhook,
@@ -291,7 +291,7 @@ func TestOrchestrator_IgnoreWebhookSeverityCap(t *testing.T) {
 			Name:     "crit-zone-ignore-webhook",
 			NotAfter: now.Add(7 * 24 * time.Hour), // within crit threshold
 			ProbeOK:  true,
-			Notes:    "failurePolicy=Ignore",
+			Notes:    notesFailPolicyIgnore,
 		},
 		{
 			Source:   store.SourceWebhook,
@@ -337,7 +337,7 @@ func TestOrchestrator_SkipsProbeFailedFindings(t *testing.T) {
 			Severity: store.SeverityInfo,
 			Name:     "failed-probe",
 			ProbeOK:  false,
-			ProbeErr: "connection refused",
+			ProbeErr: testProbeErrConnRefused,
 		},
 	}
 

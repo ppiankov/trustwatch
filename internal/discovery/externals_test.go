@@ -138,8 +138,8 @@ func TestExternalDiscoverer_ProbeFailure(t *testing.T) {
 	if f.ProbeOK {
 		t.Error("expected ProbeOK=false")
 	}
-	if f.ProbeErr != "connection refused" {
-		t.Errorf("expected ProbeErr %q, got %q", "connection refused", f.ProbeErr)
+	if f.ProbeErr != testProbeErrConnRefused {
+		t.Errorf("expected ProbeErr %q, got %q", testProbeErrConnRefused, f.ProbeErr)
 	}
 	if f.Target != "tcp://unreachable.example.com:443" {
 		t.Errorf("expected target preserved, got %q", f.Target)

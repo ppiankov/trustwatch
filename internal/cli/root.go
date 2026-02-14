@@ -1,3 +1,4 @@
+// Package cli provides the trustwatch CLI commands.
 package cli
 
 import (

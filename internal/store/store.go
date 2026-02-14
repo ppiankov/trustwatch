@@ -1,3 +1,4 @@
+// Package store defines the data model for trustwatch findings and snapshots.
 package store
 
 import "time"
@@ -5,6 +6,7 @@ import "time"
 // Severity classifies how urgent a finding is.
 type Severity string
 
+// Severity levels for findings.
 const (
 	SeverityInfo     Severity = "info"
 	SeverityWarn     Severity = "warn"
@@ -14,6 +16,7 @@ const (
 // SourceKind identifies where a finding was discovered.
 type SourceKind string
 
+// Source kinds for findings.
 const (
 	SourceTLSSecret  SourceKind = "k8s.tlsSecret"
 	SourceIngressTLS SourceKind = "k8s.ingressTLS"
@@ -28,25 +31,25 @@ const (
 
 // CertFinding represents a single trust surface observation.
 type CertFinding struct {
-	Source    SourceKind `json:"source"`
-	Severity  Severity   `json:"severity"`
-	Namespace string     `json:"namespace,omitempty"`
+	NotAfter  time.Time  `json:"notAfter"`
 	Name      string     `json:"name,omitempty"`
+	Namespace string     `json:"namespace,omitempty"`
+	Source    SourceKind `json:"source"`
 	Target    string     `json:"target,omitempty"`
 	SNI       string     `json:"sni,omitempty"`
-	NotAfter  time.Time  `json:"notAfter"`
-	DNSNames  []string   `json:"dnsNames,omitempty"`
+	Severity  Severity   `json:"severity"`
 	Issuer    string     `json:"issuer,omitempty"`
 	Subject   string     `json:"subject,omitempty"`
 	Serial    string     `json:"serial,omitempty"`
-	ProbeOK   bool       `json:"probeOk"`
 	ProbeErr  string     `json:"probeError,omitempty"`
 	Notes     string     `json:"notes,omitempty"`
+	DNSNames  []string   `json:"dnsNames,omitempty"`
+	ProbeOK   bool       `json:"probeOk"`
 }
 
 // Snapshot is a point-in-time collection of findings.
 type Snapshot struct {
 	At       time.Time         `json:"at"`
+	Errors   map[string]string `json:"errors,omitempty"`
 	Findings []CertFinding     `json:"findings"`
-	Errors   map[string]string `json:"errors,omitempty"` // discoverer name → error message
 }

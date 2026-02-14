@@ -38,8 +38,8 @@ external:
 	}
 	defer os.Remove(f.Name())
 
-	if _, err := f.WriteString(content); err != nil {
-		t.Fatal(err)
+	if _, writeErr := f.WriteString(content); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	f.Close()
 
