@@ -18,18 +18,19 @@ type SourceKind string
 
 // Source kinds for findings.
 const (
-	SourceTLSSecret   SourceKind = "k8s.tlsSecret"
-	SourceIngressTLS  SourceKind = "k8s.ingressTLS"
-	SourceWebhook     SourceKind = "k8s.webhook"
-	SourceAPIService  SourceKind = "k8s.apiservice"
-	SourceLinkerd     SourceKind = "mesh.linkerd"
-	SourceIstio       SourceKind = "mesh.istio"
-	SourceExternal    SourceKind = "external"
-	SourceAPIServer   SourceKind = "k8s.apiserver"
-	SourceAnnotation  SourceKind = "annotation"
-	SourceGateway     SourceKind = "k8s.gateway"
-	SourceCertManager SourceKind = "certmanager"
-	SourcePolicy      SourceKind = "policy"
+	SourceTLSSecret          SourceKind = "k8s.tlsSecret"
+	SourceIngressTLS         SourceKind = "k8s.ingressTLS"
+	SourceWebhook            SourceKind = "k8s.webhook"
+	SourceAPIService         SourceKind = "k8s.apiservice"
+	SourceLinkerd            SourceKind = "mesh.linkerd"
+	SourceIstio              SourceKind = "mesh.istio"
+	SourceExternal           SourceKind = "external"
+	SourceAPIServer          SourceKind = "k8s.apiserver"
+	SourceAnnotation         SourceKind = "annotation"
+	SourceGateway            SourceKind = "k8s.gateway"
+	SourceCertManager        SourceKind = "certmanager"
+	SourceCertManagerRenewal SourceKind = "certmanager.renewal"
+	SourcePolicy             SourceKind = "policy"
 )
 
 // CertFinding represents a single trust surface observation.
@@ -46,6 +47,7 @@ type CertFinding struct {
 	Serial      string     `json:"serial,omitempty"`
 	ProbeErr    string     `json:"probeError,omitempty"`
 	Notes       string     `json:"notes,omitempty"`
+	FindingType string     `json:"findingType,omitempty"`
 	PolicyName  string     `json:"policyName,omitempty"`
 	ChainErrors []string   `json:"chainErrors,omitempty"`
 	DNSNames    []string   `json:"dnsNames,omitempty"`
