@@ -9,7 +9,10 @@
 ## Quick Start
 
 ```bash
-# Install
+# Homebrew
+brew install ppiankov/tap/trustwatch
+
+# Or install from source
 go install github.com/ppiankov/trustwatch/cmd/trustwatch@latest
 
 # Scan current cluster

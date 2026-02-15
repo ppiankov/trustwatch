@@ -120,6 +120,11 @@ jobs:
             echo "## Install"
             echo ""
             echo '```bash'
+            echo "# Homebrew"
+            echo "brew install ppiankov/tap/trustwatch"
+            echo '```'
+            echo ""
+            echo '```bash'
             echo "# macOS (Apple Silicon)"
             echo "curl -LO https://github.com/${REPO}/releases/download/${TAG}/${PROJECT}_${VERSION}_darwin_arm64.tar.gz"
             echo "tar -xzf ${PROJECT}_${VERSION}_darwin_arm64.tar.gz"
@@ -169,6 +174,103 @@ jobs:
           body: ${{ steps.notes.outputs.notes }}
           files: dist/*
           generate_release_notes: false
+
+  homebrew:
+    name: Update Homebrew formula
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: ppiankov/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Download release archives
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          VERSION_NUM=${VERSION#v}
+          PROJECT=trustwatch
+          for combo in darwin_arm64 darwin_amd64 linux_arm64 linux_amd64; do
+            curl -sLO "https://github.com/${REPO}/releases/download/${VERSION}/${PROJECT}_${VERSION_NUM}_${combo}.tar.gz"
+          done
+
+      - name: Generate formula
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          VERSION_NUM=${VERSION#v}
+          PROJECT=trustwatch
+
+          SHA_DARWIN_ARM64=$(sha256sum ${PROJECT}_${VERSION_NUM}_darwin_arm64.tar.gz | awk '{print $1}')
+          SHA_DARWIN_AMD64=$(sha256sum ${PROJECT}_${VERSION_NUM}_darwin_amd64.tar.gz | awk '{print $1}')
+          SHA_LINUX_ARM64=$(sha256sum ${PROJECT}_${VERSION_NUM}_linux_arm64.tar.gz | awk '{print $1}')
+          SHA_LINUX_AMD64=$(sha256sum ${PROJECT}_${VERSION_NUM}_linux_amd64.tar.gz | awk '{print $1}')
+
+          mkdir -p Formula
+          cat > Formula/trustwatch.rb <<FORMULA
+          # typed: false
+          # frozen_string_literal: true
+
+          class Trustwatch < Formula
+            desc "Kubernetes trust surface monitoring — discovers expiring certificates across webhooks, mesh, and more"
+            homepage "https://github.com/${REPO}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${PROJECT}_${VERSION_NUM}_darwin_arm64.tar.gz"
+                sha256 "${SHA_DARWIN_ARM64}"
+              end
+              on_intel do
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${PROJECT}_${VERSION_NUM}_darwin_amd64.tar.gz"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${PROJECT}_${VERSION_NUM}_linux_arm64.tar.gz"
+                sha256 "${SHA_LINUX_ARM64}"
+              end
+              on_intel do
+                url "https://github.com/${REPO}/releases/download/${VERSION}/${PROJECT}_${VERSION_NUM}_linux_amd64.tar.gz"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install "trustwatch"
+            end
+
+            test do
+              assert_match "trustwatch", shell_output("#{bin}/trustwatch version")
+            end
+          end
+          FORMULA
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' Formula/trustwatch.rb
+
+      - name: Commit and push formula
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/trustwatch.rb
+          git commit -m "trustwatch ${{ steps.tag.outputs.version }}"
+          git push
 
   container:
     name: Container image
