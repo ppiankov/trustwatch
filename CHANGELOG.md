@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-02-15
+
+### Added
+- TrustPolicy CRD (`trustwatch.dev/v1alpha1`): declarative policy rules applied via `trustwatch apply`
+- `trustwatch apply` command: idempotent CRD installation
+- `trustwatch policy` command: list active TrustPolicy resources
+- Policy rules engine: enforces min key size, no SHA-1, required issuer, no self-signed leaves
+- Policy violations surfaced as `POLICY_VIOLATION` findings with source `policy`
+- cert-manager renewal health: detects stuck renewals (`RENEWAL_STALLED`), failed challenges (`CHALLENGE_FAILED`), pending certificates (`REQUEST_PENDING`)
+- Historical snapshot storage via SQLite (`modernc.org/sqlite`, CGO-free)
+- `--history-db` flag on `now` and `serve` for snapshot persistence
+- `/api/v1/history` and `/api/v1/trend` endpoints for time-series queries
+- SPIFFE/SPIRE trust bundle discovery via workload API (`--spiffe-socket`)
+- Cloud provider certificate discovery behind build tags: AWS ACM (`aws`), GCP Certificate Manager (`gcp`), Azure Key Vault (`azure`)
+- OpenTelemetry tracing with OTLP gRPC export (`--otel-endpoint`), noop when disabled
+- Multi-cluster federation: `--remote name=url` flag and `remotes` config for aggregating snapshots from remote trustwatch instances
+- `--cluster-name` flag and `clusterName` config for labeling findings in federated views
+- `cluster` label on Prometheus metrics (`cert_not_after_timestamp`, `cert_expires_in_seconds`, `probe_success`)
+- Web UI: client-side filtering by severity, source, and text search
+- Web UI: expandable detail panel with Subject, Issuer, Serial, SANs, key algorithm, finding type, policy name, cluster
+- Web UI: inline SVG sparklines showing severity trend from `/api/v1/trend`
+- `KeyAlgorithm`, `KeySize`, `SignatureAlgorithm`, `SelfSigned` fields on findings for policy evaluation
+
 ## [0.1.5] - 2026-02-15
 
 ### Added
