@@ -9,17 +9,27 @@
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; margin: 0; padding: 20px; background: #1a1a2e; color: #e0e0e0; }
   h1 { font-size: 1.4em; margin: 0 0 4px 0; color: #fff; }
   .meta { color: #888; font-size: 0.85em; margin-bottom: 16px; }
-  .counts { margin-bottom: 16px; font-size: 0.9em; }
+  .counts { margin-bottom: 12px; font-size: 0.9em; }
   .counts span { margin-right: 16px; }
   .count-critical { color: #ff6b6b; }
   .count-warn { color: #ffa94d; }
+  .filter-bar { margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filter-bar input, .filter-bar select { background: #2a2a3e; border: 1px solid #444; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 0.85em; }
+  .filter-bar input { width: 200px; }
   table { border-collapse: collapse; width: 100%; font-size: 0.85em; }
   th { text-align: left; padding: 8px 12px; border-bottom: 2px solid #333; color: #aaa; font-weight: 600; }
   td { padding: 6px 12px; border-bottom: 1px solid #2a2a3e; }
-  tr:hover { background: #2a2a3e; }
+  tr.data-row { cursor: pointer; }
+  tr.data-row:hover { background: #2a2a3e; }
   .critical td { color: #ff6b6b; }
   .warn td { color: #ffa94d; }
   .empty { text-align: center; padding: 40px; color: #888; font-size: 1.1em; }
+  .detail-row td { padding: 12px; background: #22223a; border-bottom: 1px solid #333; }
+  .detail-grid { display: grid; grid-template-columns: 120px 1fr; gap: 4px 12px; font-size: 0.85em; }
+  .detail-grid dt { color: #888; font-weight: 600; }
+  .detail-grid dd { margin: 0; word-break: break-all; }
+  .sparkline { display: inline-block; vertical-align: middle; margin-left: 8px; }
+  .hidden { display: none; }
 </style>
 </head>
 <body>
@@ -30,13 +40,24 @@
   <span class="count-critical">critical: {{.CriticalCount}}</span>
   <span class="count-warn">warn: {{.WarnCount}}</span>
 </div>
-<table>
+<div class="filter-bar">
+  <input type="text" id="searchFilter" placeholder="Filter by text..." oninput="applyFilters()">
+  <select id="sevFilter" onchange="applyFilters()">
+    <option value="">All severities</option>
+    <option value="critical">critical</option>
+    <option value="warn">warn</option>
+  </select>
+  <select id="srcFilter" onchange="applyFilters()">
+    <option value="">All sources</option>
+  </select>
+</div>
+<table id="findingsTable">
 <thead>
 <tr><th>Severity</th><th>Source</th><th>Where</th><th>Expires In</th><th>Not After</th><th>Risk</th><th>Chain</th><th>Error</th></tr>
 </thead>
 <tbody>
 {{range .Findings}}
-<tr class="{{.SevClass}}">
+<tr class="data-row {{.SevClass}}" data-sev="{{.Severity}}" data-src="{{.Source}}" data-name="{{.Name}}" data-ns="{{.Namespace}}" onclick="toggleDetail(this)">
   <td>{{.Severity}}</td>
   <td>{{.Source}}</td>
   <td>{{.Where}}</td>
@@ -46,11 +67,96 @@
   <td>{{.ChainErrors}}</td>
   <td>{{.Error}}</td>
 </tr>
+<tr class="detail-row hidden">
+  <td colspan="8">
+    <dl class="detail-grid">
+      {{if .Subject}}<dt>Subject</dt><dd>{{.Subject}}</dd>{{end}}
+      {{if .Issuer}}<dt>Issuer</dt><dd>{{.Issuer}}</dd>{{end}}
+      {{if .Serial}}<dt>Serial</dt><dd>{{.Serial}}</dd>{{end}}
+      {{if .DNSNames}}<dt>SANs</dt><dd>{{.DNSNames}}</dd>{{end}}
+      {{if .KeyAlgorithm}}<dt>Key</dt><dd>{{.KeyAlgorithm}}</dd>{{end}}
+      {{if .FindingType}}<dt>Finding Type</dt><dd>{{.FindingType}}</dd>{{end}}
+      {{if .PolicyName}}<dt>Policy</dt><dd>{{.PolicyName}}</dd>{{end}}
+    </dl>
+    <span class="sparkline" data-name="{{.Name}}" data-ns="{{.Namespace}}" data-src="{{.Source}}"></span>
+  </td>
+</tr>
 {{end}}
 </tbody>
 </table>
 {{else}}
 <p class="empty">No problems found.</p>
 {{end}}
+<script>
+(function() {
+  // Populate source filter options
+  var srcSet = {};
+  document.querySelectorAll('tr.data-row').forEach(function(r) {
+    srcSet[r.dataset.src] = true;
+  });
+  var sel = document.getElementById('srcFilter');
+  if (sel) {
+    Object.keys(srcSet).sort().forEach(function(s) {
+      var o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      sel.appendChild(o);
+    });
+  }
+})();
+
+function applyFilters() {
+  var text = (document.getElementById('searchFilter').value || '').toLowerCase();
+  var sev = document.getElementById('sevFilter').value;
+  var src = document.getElementById('srcFilter').value;
+  document.querySelectorAll('tr.data-row').forEach(function(r) {
+    var detail = r.nextElementSibling;
+    var show = true;
+    if (sev && r.dataset.sev !== sev) show = false;
+    if (src && r.dataset.src !== src) show = false;
+    if (text && r.textContent.toLowerCase().indexOf(text) === -1) show = false;
+    r.style.display = show ? '' : 'none';
+    if (detail && detail.classList.contains('detail-row')) {
+      if (!show) detail.classList.add('hidden');
+    }
+  });
+}
+
+function toggleDetail(row) {
+  var detail = row.nextElementSibling;
+  if (!detail || !detail.classList.contains('detail-row')) return;
+  var wasHidden = detail.classList.contains('hidden');
+  detail.classList.toggle('hidden');
+  if (wasHidden) {
+    var spark = detail.querySelector('.sparkline');
+    if (spark && !spark.dataset.loaded && {{.HistoryEnabled}}) {
+      loadSparkline(spark);
+    }
+  }
+}
+
+function loadSparkline(el) {
+  el.dataset.loaded = '1';
+  var name = el.dataset.name;
+  var ns = el.dataset.ns;
+  var src = el.dataset.src;
+  if (!name || !src) return;
+  var url = '/api/v1/trend?name=' + encodeURIComponent(name) +
+    '&namespace=' + encodeURIComponent(ns || '') +
+    '&source=' + encodeURIComponent(src) + '&limit=20';
+  fetch(url).then(function(r) { return r.json(); }).then(function(points) {
+    if (!points || points.length < 2) return;
+    var w = 120, h = 24, pad = 2;
+    var sevMap = {'critical': 2, 'warn': 1, 'info': 0};
+    var vals = points.reverse().map(function(p) { return sevMap[p.severity] || 0; });
+    var maxV = 2;
+    var step = (w - 2 * pad) / (vals.length - 1);
+    var pts = vals.map(function(v, i) {
+      return (pad + i * step) + ',' + (h - pad - (v / maxV) * (h - 2 * pad));
+    }).join(' ');
+    el.innerHTML = '<svg width="' + w + '" height="' + h + '"><polyline points="' + pts +
+      '" fill="none" stroke="#ffa94d" stroke-width="1.5"/></svg>';
+  }).catch(function() {});
+}
+</script>
 </body>
 </html>
