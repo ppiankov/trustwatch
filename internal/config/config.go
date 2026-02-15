@@ -28,6 +28,12 @@ type NotificationConfig struct {
 	Enabled    bool            `yaml:"enabled"`
 }
 
+// RemoteCluster describes a remote trustwatch instance to federate.
+type RemoteCluster struct {
+	Name string `yaml:"name"` // cluster label
+	URL  string `yaml:"url"`  // base URL of remote trustwatch (e.g. http://trustwatch.staging:8080)
+}
+
 // Config holds trustwatch runtime configuration.
 type Config struct {
 	ListenAddr    string             `yaml:"listenAddr"`
@@ -35,8 +41,10 @@ type Config struct {
 	HistoryDB     string             `yaml:"historyDB"`
 	SPIFFESocket  string             `yaml:"spiffeSocket"`
 	OTelEndpoint  string             `yaml:"otelEndpoint"`
+	ClusterName   string             `yaml:"clusterName"`
 	Namespaces    []string           `yaml:"namespaces"`
 	External      []ExternalTarget   `yaml:"external"`
+	Remotes       []RemoteCluster    `yaml:"remotes"`
 	Notifications NotificationConfig `yaml:"notifications"`
 	RefreshEvery  time.Duration      `yaml:"refreshEvery"`
 	WarnBefore    time.Duration      `yaml:"warnBefore"`

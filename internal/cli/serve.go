@@ -25,6 +25,7 @@ import (
 
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
+	"github.com/ppiankov/trustwatch/internal/federation"
 	"github.com/ppiankov/trustwatch/internal/history"
 	"github.com/ppiankov/trustwatch/internal/metrics"
 	"github.com/ppiankov/trustwatch/internal/notify"
@@ -77,6 +78,8 @@ func init() {
 	serveCmd.Flags().String("context", "", "Kubernetes context to use")
 	serveCmd.Flags().String("history-db", "", "Path to SQLite history database (enables /api/v1/history and /api/v1/trend)")
 	serveCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
+	serveCmd.Flags().String("cluster-name", "", "Name for this cluster in federated views")
+	serveCmd.Flags().StringSlice("remote", nil, "Remote trustwatch URLs (name=url format)")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -241,6 +244,20 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 
+	// Parse federation remotes
+	clusterName, _ := cmd.Flags().GetString("cluster-name") //nolint:errcheck // flag registered above
+	if clusterName == "" {
+		clusterName = cfg.ClusterName
+	}
+	remoteFlags, _ := cmd.Flags().GetStringSlice("remote") //nolint:errcheck // flag registered above
+	remoteSources := parseRemoteFlags(remoteFlags, cfg.Remotes)
+	if len(remoteSources) > 0 {
+		if clusterName == "" {
+			clusterName = "local"
+		}
+		slog.Info("federation enabled", "cluster", clusterName, "remotes", len(remoteSources))
+	}
+
 	// Notifications (nil if not configured)
 	notifier := notify.New(cfg.Notifications)
 
@@ -291,6 +308,25 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	scan := func() {
 		start := time.Now()
 		snap := orch.Run()
+
+		// Federate with remote clusters
+		if len(remoteSources) > 0 {
+			remoteSnaps := make(map[string]store.Snapshot)
+			for _, rs := range remoteSources {
+				remoteSnap, fetchErr := rs.Fetch(context.Background())
+				if fetchErr != nil {
+					slog.Warn("fetching remote snapshot", "cluster", rs.Name, "err", fetchErr)
+					continue
+				}
+				remoteSnaps[rs.Name] = remoteSnap
+			}
+			snap = federation.Merge(clusterName, snap, remoteSnaps)
+		} else if clusterName != "" {
+			for i := range snap.Findings {
+				snap.Findings[i].Cluster = clusterName
+			}
+		}
+
 		duration := time.Since(start)
 
 		mu.Lock()
