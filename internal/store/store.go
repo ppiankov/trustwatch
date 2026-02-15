@@ -36,24 +36,28 @@ const (
 
 // CertFinding represents a single trust surface observation.
 type CertFinding struct {
-	NotAfter    time.Time  `json:"notAfter"`
-	Name        string     `json:"name,omitempty"`
-	Namespace   string     `json:"namespace,omitempty"`
-	Source      SourceKind `json:"source"`
-	Target      string     `json:"target,omitempty"`
-	SNI         string     `json:"sni,omitempty"`
-	Severity    Severity   `json:"severity"`
-	Issuer      string     `json:"issuer,omitempty"`
-	Subject     string     `json:"subject,omitempty"`
-	Serial      string     `json:"serial,omitempty"`
-	ProbeErr    string     `json:"probeError,omitempty"`
-	Notes       string     `json:"notes,omitempty"`
-	FindingType string     `json:"findingType,omitempty"`
-	PolicyName  string     `json:"policyName,omitempty"`
-	ChainErrors []string   `json:"chainErrors,omitempty"`
-	DNSNames    []string   `json:"dnsNames,omitempty"`
-	ProbeOK     bool       `json:"probeOk"`
-	ChainLen    int        `json:"chainLen,omitempty"`
+	NotAfter           time.Time  `json:"notAfter"`
+	Name               string     `json:"name,omitempty"`
+	Namespace          string     `json:"namespace,omitempty"`
+	Source             SourceKind `json:"source"`
+	Target             string     `json:"target,omitempty"`
+	SNI                string     `json:"sni,omitempty"`
+	Severity           Severity   `json:"severity"`
+	Issuer             string     `json:"issuer,omitempty"`
+	Subject            string     `json:"subject,omitempty"`
+	Serial             string     `json:"serial,omitempty"`
+	ProbeErr           string     `json:"probeError,omitempty"`
+	Notes              string     `json:"notes,omitempty"`
+	FindingType        string     `json:"findingType,omitempty"`
+	PolicyName         string     `json:"policyName,omitempty"`
+	KeyAlgorithm       string     `json:"keyAlgorithm,omitempty"`
+	SignatureAlgorithm string     `json:"signatureAlgorithm,omitempty"`
+	ChainErrors        []string   `json:"chainErrors,omitempty"`
+	DNSNames           []string   `json:"dnsNames,omitempty"`
+	ProbeOK            bool       `json:"probeOk"`
+	SelfSigned         bool       `json:"selfSigned,omitempty"`
+	ChainLen           int        `json:"chainLen,omitempty"`
+	KeySize            int        `json:"keySize,omitempty"`
 }
 
 // Snapshot is a point-in-time collection of findings.
