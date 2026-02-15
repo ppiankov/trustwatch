@@ -57,7 +57,7 @@
 </thead>
 <tbody>
 {{range .Findings}}
-<tr class="data-row {{.SevClass}}" data-sev="{{.Severity}}" data-src="{{.Source}}" data-name="{{.Name}}" data-ns="{{.Namespace}}" onclick="toggleDetail(this)">
+<tr class="data-row {{.SevClass}}" data-sev="{{.Severity}}" data-src="{{.Source}}" data-name="{{.Name}}" data-ns="{{.Namespace}}" data-cluster="{{.Cluster}}" onclick="toggleDetail(this)">
   <td>{{.Severity}}</td>
   <td>{{.Source}}</td>
   <td>{{.Where}}</td>
@@ -77,6 +77,7 @@
       {{if .KeyAlgorithm}}<dt>Key</dt><dd>{{.KeyAlgorithm}}</dd>{{end}}
       {{if .FindingType}}<dt>Finding Type</dt><dd>{{.FindingType}}</dd>{{end}}
       {{if .PolicyName}}<dt>Policy</dt><dd>{{.PolicyName}}</dd>{{end}}
+      {{if .Cluster}}<dt>Cluster</dt><dd>{{.Cluster}}</dd>{{end}}
     </dl>
     <span class="sparkline" data-name="{{.Name}}" data-ns="{{.Namespace}}" data-src="{{.Source}}"></span>
   </td>

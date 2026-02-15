@@ -29,19 +29,19 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 			Namespace: "trustwatch",
 			Name:      "cert_not_after_timestamp",
 			Help:      "Unix timestamp of certificate notAfter.",
-		}, []string{"source", "namespace", "name", "severity"}),
+		}, []string{"source", "namespace", "name", "severity", "cluster"}),
 
 		certExpiresIn: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "trustwatch",
 			Name:      "cert_expires_in_seconds",
 			Help:      "Seconds until certificate expires (negative if expired).",
-		}, []string{"source", "namespace", "name", "severity"}),
+		}, []string{"source", "namespace", "name", "severity", "cluster"}),
 
 		probeSuccess: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "trustwatch",
 			Name:      "probe_success",
 			Help:      "Whether the TLS probe succeeded (1=ok, 0=failed).",
-		}, []string{"source", "namespace", "name"}),
+		}, []string{"source", "namespace", "name", "cluster"}),
 
 		scanDuration: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "trustwatch",
@@ -113,6 +113,7 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 			"namespace": f.Namespace,
 			"name":      f.Name,
 			"severity":  string(f.Severity),
+			"cluster":   f.Cluster,
 		}
 
 		if !f.NotAfter.IsZero() {
@@ -124,6 +125,7 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 			"source":    string(f.Source),
 			"namespace": f.Namespace,
 			"name":      f.Name,
+			"cluster":   f.Cluster,
 		}
 		if f.ProbeOK {
 			c.probeSuccess.With(probeLabels).Set(1)

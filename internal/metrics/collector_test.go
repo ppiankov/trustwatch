@@ -80,7 +80,7 @@ func TestUpdate_MixedFindings(t *testing.T) {
 
 	// Check cert_expires_in_seconds for the critical finding
 	expiresIn := testutil.ToFloat64(c.certExpiresIn.With(prometheus.Labels{
-		"source": "k8s.webhook", "namespace": "default", "name": "validator", "severity": "critical",
+		"source": "k8s.webhook", "namespace": "default", "name": "validator", "severity": "critical", "cluster": "",
 	}))
 	wantExpiry := 48 * 3600.0
 	if expiresIn != wantExpiry {
@@ -89,7 +89,7 @@ func TestUpdate_MixedFindings(t *testing.T) {
 
 	// Check not_after timestamp
 	notAfter := testutil.ToFloat64(c.certNotAfter.With(prometheus.Labels{
-		"source": "k8s.webhook", "namespace": "default", "name": "validator", "severity": "critical",
+		"source": "k8s.webhook", "namespace": "default", "name": "validator", "severity": "critical", "cluster": "",
 	}))
 	wantTS := float64(now.Add(48 * time.Hour).Unix())
 	if notAfter != wantTS {
@@ -98,7 +98,7 @@ func TestUpdate_MixedFindings(t *testing.T) {
 
 	// Check probe_success
 	probeOK := testutil.ToFloat64(c.probeSuccess.With(prometheus.Labels{
-		"source": "k8s.webhook", "namespace": "default", "name": "validator",
+		"source": "k8s.webhook", "namespace": "default", "name": "validator", "cluster": "",
 	}))
 	if probeOK != 1 {
 		t.Errorf("probe_success = %v, want 1", probeOK)
@@ -168,7 +168,7 @@ func TestUpdate_ExpiredCert(t *testing.T) {
 	c.Update(snap, time.Second)
 
 	expiresIn := testutil.ToFloat64(c.certExpiresIn.With(prometheus.Labels{
-		"source": "k8s.webhook", "namespace": "default", "name": "expired-hook", "severity": "critical",
+		"source": "k8s.webhook", "namespace": "default", "name": "expired-hook", "severity": "critical", "cluster": "",
 	}))
 	if expiresIn >= 0 {
 		t.Errorf("cert_expires_in_seconds = %v, want negative", expiresIn)
@@ -197,7 +197,7 @@ func TestUpdate_ProbeFailed(t *testing.T) {
 	c.Update(snap, time.Second)
 
 	probeOK := testutil.ToFloat64(c.probeSuccess.With(prometheus.Labels{
-		"source": "external", "namespace": "", "name": "down.example.com",
+		"source": "external", "namespace": "", "name": "down.example.com", "cluster": "",
 	}))
 	if probeOK != 0 {
 		t.Errorf("probe_success = %v, want 0", probeOK)

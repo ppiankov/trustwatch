@@ -42,6 +42,7 @@ type CertFinding struct {
 	NotAfter           time.Time  `json:"notAfter"`
 	Name               string     `json:"name,omitempty"`
 	Namespace          string     `json:"namespace,omitempty"`
+	Cluster            string     `json:"cluster,omitempty"`
 	Source             SourceKind `json:"source"`
 	Target             string     `json:"target,omitempty"`
 	SNI                string     `json:"sni,omitempty"`
