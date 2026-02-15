@@ -32,6 +32,9 @@ const (
 	SourceCertManagerRenewal SourceKind = "certmanager.renewal"
 	SourcePolicy             SourceKind = "policy"
 	SourceSPIFFE             SourceKind = "spiffe"
+	SourceAWSACM             SourceKind = "cloud.aws.acm"
+	SourceGCPManagedCert     SourceKind = "cloud.gcp.cert"
+	SourceAzureKeyVault      SourceKind = "cloud.azure.keyvault"
 )
 
 // CertFinding represents a single trust surface observation.

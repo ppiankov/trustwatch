@@ -220,6 +220,8 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		discoverers = append(discoverers, discovery.NewSPIFFEDiscoverer(spiffeSocket))
 	}
 
+	discoverers = append(discoverers, discovery.CloudDiscoverers()...)
+
 	var orchOpts []discovery.OrchestratorOption
 	if len(loadedPolicies) > 0 {
 		orchOpts = append(orchOpts, discovery.WithPolicies(loadedPolicies))
