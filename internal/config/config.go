@@ -34,6 +34,7 @@ type Config struct {
 	MetricsPath   string             `yaml:"metricsPath"`
 	HistoryDB     string             `yaml:"historyDB"`
 	SPIFFESocket  string             `yaml:"spiffeSocket"`
+	OTelEndpoint  string             `yaml:"otelEndpoint"`
 	Namespaces    []string           `yaml:"namespaces"`
 	External      []ExternalTarget   `yaml:"external"`
 	Notifications NotificationConfig `yaml:"notifications"`

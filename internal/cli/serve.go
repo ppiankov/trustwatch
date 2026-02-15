@@ -30,6 +30,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/notify"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/store"
+	"github.com/ppiankov/trustwatch/internal/telemetry"
 	"github.com/ppiankov/trustwatch/internal/web"
 )
 
@@ -222,9 +223,21 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	discoverers = append(discoverers, discovery.CloudDiscoverers()...)
 
+	// Initialize tracing
+	otelEndpoint, _ := cmd.Flags().GetString("otel-endpoint") //nolint:errcheck // flag registered above
+	tracer, tracerShutdown, tracerErr := telemetry.InitTracer(context.Background(), otelEndpoint, "trustwatch", version)
+	if tracerErr != nil {
+		slog.Warn("initializing tracer", "err", tracerErr)
+	} else {
+		defer tracerShutdown(context.Background()) //nolint:errcheck // best-effort flush
+	}
+
 	var orchOpts []discovery.OrchestratorOption
 	if len(loadedPolicies) > 0 {
 		orchOpts = append(orchOpts, discovery.WithPolicies(loadedPolicies))
+	}
+	if tracer != nil {
+		orchOpts = append(orchOpts, discovery.WithTracer(tracer))
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 
