@@ -23,8 +23,24 @@ var problemsTmpl = template.Must(template.ParseFS(templateFS, "templates/problem
 // SnapshotFunc returns the current snapshot.
 type SnapshotFunc func() store.Snapshot
 
+// UIConfig holds options for UIHandler.
+type UIConfig struct {
+	historyEnabled bool
+}
+
+// WithHistoryEnabled marks that the /api/v1/trend endpoint is available.
+func WithHistoryEnabled() func(*UIConfig) {
+	return func(c *UIConfig) {
+		c.historyEnabled = true
+	}
+}
+
 // UIHandler serves the problems web UI, filtering to critical+warn only.
-func UIHandler(getSnapshot SnapshotFunc) http.HandlerFunc {
+func UIHandler(getSnapshot SnapshotFunc, opts ...func(*UIConfig)) http.HandlerFunc {
+	cfg := &UIConfig{}
+	for _, o := range opts {
+		o(cfg)
+	}
 	return func(w http.ResponseWriter, _ *http.Request) {
 		snap := getSnapshot()
 		now := time.Now()
@@ -58,23 +74,33 @@ func UIHandler(getSnapshot SnapshotFunc) http.HandlerFunc {
 				warnCount++
 			}
 			rows = append(rows, findingRow{
-				Severity:    string(f.Severity),
-				SevClass:    string(f.Severity),
-				Source:      string(f.Source),
-				Where:       formatWhere(f),
-				ExpiresIn:   formatExpiresIn(f.NotAfter, now),
-				NotAfter:    formatNotAfter(f.NotAfter),
-				Risk:        f.Notes,
-				ChainErrors: strings.Join(f.ChainErrors, "; "),
-				Error:       f.ProbeErr,
+				Severity:     string(f.Severity),
+				SevClass:     string(f.Severity),
+				Source:       string(f.Source),
+				Where:        formatWhere(f),
+				ExpiresIn:    formatExpiresIn(f.NotAfter, now),
+				NotAfter:     formatNotAfter(f.NotAfter),
+				Risk:         f.Notes,
+				ChainErrors:  strings.Join(f.ChainErrors, "; "),
+				Error:        f.ProbeErr,
+				Subject:      f.Subject,
+				Issuer:       f.Issuer,
+				Serial:       f.Serial,
+				DNSNames:     strings.Join(f.DNSNames, ", "),
+				KeyAlgorithm: f.KeyAlgorithm,
+				FindingType:  f.FindingType,
+				PolicyName:   f.PolicyName,
+				Name:         f.Name,
+				Namespace:    f.Namespace,
 			})
 		}
 
 		data := pageData{
-			ScanTime:      snap.At.Format(time.RFC3339),
-			CriticalCount: critCount,
-			WarnCount:     warnCount,
-			Findings:      rows,
+			ScanTime:       snap.At.Format(time.RFC3339),
+			CriticalCount:  critCount,
+			WarnCount:      warnCount,
+			Findings:       rows,
+			HistoryEnabled: cfg.historyEnabled,
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -119,22 +145,32 @@ func HealthzHandler(getSnapshot SnapshotFunc, maxAge time.Duration) http.Handler
 }
 
 type pageData struct {
-	ScanTime      string
-	Findings      []findingRow
-	CriticalCount int
-	WarnCount     int
+	ScanTime       string
+	Findings       []findingRow
+	CriticalCount  int
+	WarnCount      int
+	HistoryEnabled bool
 }
 
 type findingRow struct {
-	Severity    string
-	SevClass    string
-	Source      string
-	Where       string
-	ExpiresIn   string
-	NotAfter    string
-	Risk        string
-	ChainErrors string
-	Error       string
+	Severity     string
+	SevClass     string
+	Source       string
+	Where        string
+	ExpiresIn    string
+	NotAfter     string
+	Risk         string
+	ChainErrors  string
+	Error        string
+	Subject      string
+	Issuer       string
+	Serial       string
+	DNSNames     string
+	KeyAlgorithm string
+	FindingType  string
+	PolicyName   string
+	Name         string
+	Namespace    string
 }
 
 func sevOrder(s store.Severity) int {

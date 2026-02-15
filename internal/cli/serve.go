@@ -246,7 +246,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	// HTTP server
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", web.UIHandler(getSnapshot))
+	var uiOpts []func(*web.UIConfig)
+	if histStore != nil {
+		uiOpts = append(uiOpts, web.WithHistoryEnabled())
+	}
+	mux.HandleFunc("/", web.UIHandler(getSnapshot, uiOpts...))
 	mux.HandleFunc("/healthz", web.HealthzHandler(getSnapshot, 2*cfg.RefreshEvery))
 	mux.HandleFunc("/api/v1/snapshot", web.SnapshotHandler(getSnapshot))
 	if histStore != nil {
