@@ -1,0 +1,91 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: trustpolicies.trustwatch.dev
+spec:
+  group: trustwatch.dev
+  names:
+    kind: TrustPolicy
+    listKind: TrustPolicyList
+    plural: trustpolicies
+    singular: trustpolicy
+    shortNames:
+      - tp
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                targets:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum: ["Service", "External", "Secret"]
+                      namespace:
+                        type: string
+                      name:
+                        type: string
+                      ports:
+                        type: array
+                        items:
+                          type: integer
+                      sni:
+                        type: string
+                      urls:
+                        type: array
+                        items:
+                          type: string
+                      severity:
+                        type: string
+                        enum: ["info", "warn", "critical"]
+                    required:
+                      - kind
+                thresholds:
+                  type: object
+                  properties:
+                    warnBefore:
+                      type: string
+                    critBefore:
+                      type: string
+                rules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                      type:
+                        type: string
+                        enum: ["minKeySize", "noSHA1", "requiredIssuer", "noSelfSigned"]
+                      params:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      severity:
+                        type: string
+                        enum: ["info", "warn", "critical"]
+                    required:
+                      - name
+                      - type
+      additionalPrinterColumns:
+        - name: Targets
+          type: integer
+          jsonPath: .spec.targets
+          description: Number of monitoring targets
+        - name: Rules
+          type: integer
+          jsonPath: .spec.rules
+          description: Number of policy rules
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

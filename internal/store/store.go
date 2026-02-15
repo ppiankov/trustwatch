@@ -29,6 +29,7 @@ const (
 	SourceAnnotation  SourceKind = "annotation"
 	SourceGateway     SourceKind = "k8s.gateway"
 	SourceCertManager SourceKind = "certmanager"
+	SourcePolicy      SourceKind = "policy"
 )
 
 // CertFinding represents a single trust surface observation.
@@ -45,6 +46,7 @@ type CertFinding struct {
 	Serial      string     `json:"serial,omitempty"`
 	ProbeErr    string     `json:"probeError,omitempty"`
 	Notes       string     `json:"notes,omitempty"`
+	PolicyName  string     `json:"policyName,omitempty"`
 	ChainErrors []string   `json:"chainErrors,omitempty"`
 	DNSNames    []string   `json:"dnsNames,omitempty"`
 	ProbeOK     bool       `json:"probeOk"`

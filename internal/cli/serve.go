@@ -27,6 +27,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/discovery"
 	"github.com/ppiankov/trustwatch/internal/metrics"
 	"github.com/ppiankov/trustwatch/internal/notify"
+	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/store"
 	"github.com/ppiankov/trustwatch/internal/web"
 )
@@ -133,6 +134,24 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	dynClient, err := dynamic.NewForConfig(restCfg)
 	if err != nil {
 		return fmt.Errorf("creating dynamic client: %w", err)
+	}
+
+	// Load TrustPolicy CRs if CRD is installed
+	loadedPolicies, loadErr := policy.LoadPolicies(context.Background(), clientset.Discovery(), dynClient)
+	if loadErr != nil {
+		slog.Warn("loading trust policies", "err", loadErr)
+	}
+	if len(loadedPolicies) > 0 {
+		slog.Info("loaded trust policies", "count", len(loadedPolicies))
+		for i := range loadedPolicies {
+			for j := range loadedPolicies[i].Spec.Targets {
+				if loadedPolicies[i].Spec.Targets[j].Kind == "External" {
+					for _, u := range loadedPolicies[i].Spec.Targets[j].URLs {
+						cfg.External = append(cfg.External, config.ExternalTarget{URL: u})
+					}
+				}
+			}
+		}
 	}
 
 	// Derive API server host from kubeconfig for local probing
