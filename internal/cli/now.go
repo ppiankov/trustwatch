@@ -81,6 +81,7 @@ func init() {
 	nowCmd.Flags().StringSlice("tunnel-command", nil, "Override container command (e.g. 'microsocks,-p,1080')")
 	nowCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
 	nowCmd.Flags().String("history-db", "", "Path to SQLite history database (save snapshot)")
+	nowCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
 	nowCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: auto-detect TTY)")
 	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
 }
@@ -256,6 +257,14 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External, extOpts...))
+	}
+
+	spiffeSocket, _ := cmd.Flags().GetString("spiffe-socket") //nolint:errcheck // flag registered above
+	if spiffeSocket == "" {
+		spiffeSocket = cfg.SPIFFESocket
+	}
+	if spiffeSocket != "" {
+		discoverers = append(discoverers, discovery.NewSPIFFEDiscoverer(spiffeSocket))
 	}
 
 	// Run discovery

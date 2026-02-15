@@ -75,6 +75,7 @@ func init() {
 	serveCmd.Flags().String("kubeconfig", "", "Path to kubeconfig")
 	serveCmd.Flags().String("context", "", "Kubernetes context to use")
 	serveCmd.Flags().String("history-db", "", "Path to SQLite history database (enables /api/v1/history and /api/v1/trend)")
+	serveCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -209,6 +210,14 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 	if len(cfg.External) > 0 {
 		discoverers = append(discoverers, discovery.NewExternalDiscoverer(cfg.External))
+	}
+
+	spiffeSocket, _ := cmd.Flags().GetString("spiffe-socket") //nolint:errcheck // flag registered above
+	if spiffeSocket == "" {
+		spiffeSocket = cfg.SPIFFESocket
+	}
+	if spiffeSocket != "" {
+		discoverers = append(discoverers, discovery.NewSPIFFEDiscoverer(spiffeSocket))
 	}
 
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)

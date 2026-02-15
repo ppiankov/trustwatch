@@ -31,6 +31,7 @@ const (
 	SourceCertManager        SourceKind = "certmanager"
 	SourceCertManagerRenewal SourceKind = "certmanager.renewal"
 	SourcePolicy             SourceKind = "policy"
+	SourceSPIFFE             SourceKind = "spiffe"
 )
 
 // CertFinding represents a single trust surface observation.
