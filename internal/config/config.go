@@ -33,6 +33,7 @@ type Config struct {
 	ListenAddr    string             `yaml:"listenAddr"`
 	MetricsPath   string             `yaml:"metricsPath"`
 	HistoryDB     string             `yaml:"historyDB"`
+	SPIFFESocket  string             `yaml:"spiffeSocket"`
 	Namespaces    []string           `yaml:"namespaces"`
 	External      []ExternalTarget   `yaml:"external"`
 	Notifications NotificationConfig `yaml:"notifications"`
