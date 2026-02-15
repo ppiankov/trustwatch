@@ -20,6 +20,7 @@ import (
 
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
+	"github.com/ppiankov/trustwatch/internal/history"
 	"github.com/ppiankov/trustwatch/internal/monitor"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/probe"
@@ -79,6 +80,7 @@ func init() {
 	nowCmd.Flags().String("tunnel-image", tunnel.DefaultImage, "SOCKS5 proxy image for --tunnel")
 	nowCmd.Flags().StringSlice("tunnel-command", nil, "Override container command (e.g. 'microsocks,-p,1080')")
 	nowCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
+	nowCmd.Flags().String("history-db", "", "Path to SQLite history database (save snapshot)")
 	nowCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: auto-detect TTY)")
 	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
 }
@@ -261,6 +263,20 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
 	snap := orch.Run()
 	slog.Info("scan complete", "findings", len(snap.Findings))
+
+	// Save to history if configured
+	historyDB, _ := cmd.Flags().GetString("history-db") //nolint:errcheck // flag registered above
+	if historyDB != "" {
+		histStore, histErr := history.Open(historyDB)
+		if histErr != nil {
+			slog.Error("opening history database", "err", histErr)
+		} else {
+			if saveErr := histStore.Save(snap); saveErr != nil {
+				slog.Error("saving history snapshot", "err", saveErr)
+			}
+			histStore.Close() //nolint:errcheck // best-effort cleanup
+		}
+	}
 
 	// Display results
 	exitCode := monitor.ExitCode(snap)

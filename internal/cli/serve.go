@@ -25,6 +25,7 @@ import (
 
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
+	"github.com/ppiankov/trustwatch/internal/history"
 	"github.com/ppiankov/trustwatch/internal/metrics"
 	"github.com/ppiankov/trustwatch/internal/notify"
 	"github.com/ppiankov/trustwatch/internal/policy"
@@ -73,6 +74,7 @@ func init() {
 	serveCmd.Flags().String("listen", "", "Listen address (overrides config)")
 	serveCmd.Flags().String("kubeconfig", "", "Path to kubeconfig")
 	serveCmd.Flags().String("context", "", "Kubernetes context to use")
+	serveCmd.Flags().String("history-db", "", "Path to SQLite history database (enables /api/v1/history and /api/v1/trend)")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -99,6 +101,24 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	listenFlag, _ := cmd.Flags().GetString("listen") //nolint:errcheck // flag registered above
 	if listenFlag != "" {
 		cfg.ListenAddr = listenFlag
+	}
+
+	// Override history DB from flag
+	historyDB, _ := cmd.Flags().GetString("history-db") //nolint:errcheck // flag registered above
+	if historyDB != "" {
+		cfg.HistoryDB = historyDB
+	}
+
+	// Open history store if configured
+	var histStore *history.Store
+	if cfg.HistoryDB != "" {
+		var histErr error
+		histStore, histErr = history.Open(cfg.HistoryDB)
+		if histErr != nil {
+			return fmt.Errorf("opening history database: %w", histErr)
+		}
+		defer histStore.Close() //nolint:errcheck // best-effort cleanup on shutdown
+		slog.Info("history storage enabled", "path", cfg.HistoryDB)
 	}
 
 	// Build Kubernetes client
@@ -216,6 +236,10 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	mux.HandleFunc("/", web.UIHandler(getSnapshot))
 	mux.HandleFunc("/healthz", web.HealthzHandler(getSnapshot, 2*cfg.RefreshEvery))
 	mux.HandleFunc("/api/v1/snapshot", web.SnapshotHandler(getSnapshot))
+	if histStore != nil {
+		mux.HandleFunc("/api/v1/history", web.HistoryHandler(histStore))
+		mux.HandleFunc("/api/v1/trend", web.TrendHandler(histStore))
+	}
 	mux.Handle(cfg.MetricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
 
 	srv := &http.Server{
@@ -244,6 +268,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		mu.Unlock()
 
 		collector.Update(snap, duration)
+
+		if histStore != nil {
+			if saveErr := histStore.Save(snap); saveErr != nil {
+				slog.Error("saving history snapshot", "err", saveErr)
+			}
+		}
 
 		if notifier != nil {
 			notifier.Notify(prev, snap)
