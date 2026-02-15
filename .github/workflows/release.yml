@@ -227,6 +227,7 @@ jobs:
           class Trustwatch < Formula
             desc "Kubernetes trust surface monitoring — discovers expiring certificates across webhooks, mesh, and more"
             homepage "https://github.com/${REPO}"
+            version "${VERSION_NUM}"
             license "MIT"
 
             on_macos do
