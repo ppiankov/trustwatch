@@ -1,9 +1,12 @@
 package discovery
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/store"
@@ -12,6 +15,7 @@ import (
 // Orchestrator runs all discoverers concurrently and classifies findings.
 type Orchestrator struct {
 	nowFn       func() time.Time
+	tracer      trace.Tracer
 	policies    []policy.TrustPolicy
 	discoverers []Discoverer
 	warnBefore  time.Duration
@@ -20,6 +24,13 @@ type Orchestrator struct {
 
 // OrchestratorOption configures an Orchestrator.
 type OrchestratorOption func(*Orchestrator)
+
+// WithTracer sets the OpenTelemetry tracer for discovery spans.
+func WithTracer(t trace.Tracer) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.tracer = t
+	}
+}
 
 // WithPolicies adds TrustPolicy CRs for policy engine evaluation.
 func WithPolicies(policies []policy.TrustPolicy) OrchestratorOption {
@@ -45,6 +56,13 @@ func NewOrchestrator(discoverers []Discoverer, warnBefore, critBefore time.Durat
 // Run executes all discoverers concurrently and returns a classified snapshot.
 // Individual discoverer failures are logged but do not abort the run.
 func (o *Orchestrator) Run() store.Snapshot {
+	ctx := context.Background()
+	if o.tracer != nil {
+		var span trace.Span
+		ctx, span = o.tracer.Start(ctx, "discovery.run")
+		defer span.End()
+	}
+
 	type result struct {
 		err      error
 		name     string
@@ -58,6 +76,10 @@ func (o *Orchestrator) Run() store.Snapshot {
 		wg.Add(1)
 		go func(d Discoverer) {
 			defer wg.Done()
+			if o.tracer != nil {
+				_, span := o.tracer.Start(ctx, "discover."+d.Name())
+				defer span.End()
+			}
 			findings, err := d.Discover()
 			ch <- result{name: d.Name(), findings: findings, err: err}
 		}(d)

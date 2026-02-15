@@ -31,6 +31,7 @@ only the ones that matter.`,
 func init() {
 	rootCmd.PersistentFlags().String("log-level", "info", "Log level (debug, info, warn, error)")
 	rootCmd.PersistentFlags().String("log-format", "text", "Log format (text, json)")
+	rootCmd.PersistentFlags().String("otel-endpoint", "", "OTLP gRPC endpoint for tracing (e.g. localhost:4317)")
 }
 
 func setupLogging(cmd *cobra.Command) error {
