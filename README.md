@@ -4,7 +4,7 @@
 
 # trustwatch
 
-**Kubernetes trust surface monitoring.** Discovers expiring certificates on admission webhooks, API aggregation endpoints, service mesh issuers, annotated services, and external dependencies — then reports only the ones that matter.
+**Kubernetes trust surface monitoring.** Discovers expiring certificates on admission webhooks, API aggregation endpoints, service mesh issuers, cert-manager renewals, SPIFFE trust bundles, cloud provider certs, and external dependencies — then reports only the ones that matter. Supports policy-driven rules, multi-cluster federation, and historical trend tracking.
 
 ## Quick Start
 
@@ -27,7 +27,7 @@ docker pull ghcr.io/ppiankov/trustwatch:latest
 
 # Or build locally
 make docker-build IMAGE=my-registry.io/trustwatch
-docker push my-registry.io/trustwatch:v0.1.5
+docker push my-registry.io/trustwatch:v0.2.0
 ```
 
 Multi-arch images (`linux/amd64`, `linux/arm64`) are published automatically on each release. The image is built `FROM scratch` with only the static binary and CA certificates (~15 MB). It doubles as its own tunnel relay in air-gapped clusters via `trustwatch socks5` (see [tunnel docs](#--tunnel-in-cluster-dns-resolution)).
@@ -69,6 +69,13 @@ cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig
 - Probes TLS endpoints and reads TLS Secrets for certificate expiry
 - Annotation-driven: teams declare what matters with `trustwatch.dev/*` annotations
 - Accepts external targets via ConfigMap (vault, IdP, databases, anything with TLS)
+- TrustPolicy CRD for declarative policy rules (min key size, no SHA-1, required issuer, no self-signed)
+- Multi-cluster federation: aggregate findings from remote trustwatch instances
+- Historical snapshots via SQLite with trend API for UI sparklines
+- cert-manager renewal health: detects stuck renewals, failed challenges, pending certificates
+- SPIFFE/SPIRE trust bundle monitoring via workload API
+- Cloud provider certs: AWS ACM, GCP Certificate Manager, Azure Key Vault (build-tagged)
+- OpenTelemetry tracing with OTLP export
 - Two modes: `now` (ad-hoc TUI) and `serve` (always-on web UI + Prometheus metrics)
 - Deterministic, rule-based severity (no ML, no anomaly detection)
 - Reports only problems — healthy surfaces stay quiet
@@ -94,6 +101,8 @@ cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig
 | Istio | CA/root/intermediate materials | Expiry breaks mesh identity |
 | Gateway API | `Gateway` listener TLS certificate refs | Expiry breaks gateway routing |
 | cert-manager | `Certificate` CR expiry via dynamic client | Expiry breaks managed certs |
+| cert-manager renewal | Stuck `CertificateRequest`, failed `Challenge`, not-ready `Certificate` | Stalled renewals lead to silent expiry |
+| SPIFFE/SPIRE | Trust bundle root CAs via workload API | Expiry breaks SPIFFE identity |
 
 ### Opt-In (annotation-driven)
 
@@ -117,6 +126,26 @@ metadata:
       https://vault.internal:8200
       tcp://idp.company.com:443?sni=idp.company.com
 ```
+
+### Cloud Provider Certs (build-tagged)
+
+Cloud provider certificate discovery is available when built with the corresponding tags:
+
+```bash
+# Build with all cloud providers
+make build-cloud   # or: go build -tags "aws,gcp,azure" ./cmd/trustwatch
+
+# Build with specific providers
+go build -tags aws ./cmd/trustwatch
+```
+
+| Provider | Build Tag | Source |
+|----------|-----------|--------|
+| AWS ACM | `aws` | Lists certificates via `acm:ListCertificates` |
+| GCP Certificate Manager | `gcp` | Lists certificates via Certificate Manager API |
+| Azure Key Vault | `azure` | Lists certificates via Key Vault API |
+
+All providers use ambient authentication (IAM roles, workload identity, managed identity).
 
 ### ConfigMap Externals
 
@@ -204,7 +233,7 @@ trustwatch includes a built-in SOCKS5 server. If the trustwatch image is already
 
 ```bash
 trustwatch now --tunnel \
-  --tunnel-image my-registry.io/trustwatch:v0.1.5 \
+  --tunnel-image my-registry.io/trustwatch:v0.2.0 \
   --tunnel-command /trustwatch,socks5
 ```
 
@@ -221,6 +250,30 @@ trustwatch now --tunnel \
 **Relay pod lifecycle:**
 
 The relay pod is cleaned up automatically when trustwatch exits. A 5-minute `activeDeadlineSeconds` safety net ensures the pod is terminated even if trustwatch crashes or the connection drops.
+
+### Multi-Cluster Federation
+
+Aggregate findings from multiple trustwatch instances:
+
+```bash
+# Scan local cluster and two remote instances
+trustwatch now --cluster-name prod \
+  --remote staging=http://trustwatch.staging:8080 \
+  --remote dev=http://trustwatch.dev:8080
+```
+
+In `serve` mode, configure remotes via config file:
+
+```yaml
+clusterName: prod
+remotes:
+  - name: staging
+    url: http://trustwatch.staging.svc:8080
+  - name: dev
+    url: http://trustwatch.dev.svc:8080
+```
+
+All findings are labeled with their cluster name and the `cluster` label appears on Prometheus metrics.
 
 ### `trustwatch serve` — In-Cluster Service
 
@@ -273,22 +326,63 @@ Exposes web UI, Prometheus metrics, and JSON API.
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/` | Problems web UI |
+| `/` | Problems web UI (filterable, with detail panels and trend sparklines) |
 | `/metrics` | Prometheus scrape |
 | `/healthz` | Liveness/readiness (503 if no scan or stale) |
 | `/api/v1/snapshot` | JSON findings |
+| `/api/v1/history` | Historical snapshot summaries (requires `--history-db`) |
+| `/api/v1/trend` | Severity trend for a specific finding (requires `--history-db`) |
 
 ### Prometheus Metrics
 
 ```
-trustwatch_cert_not_after_timestamp{source, namespace, name, severity}
-trustwatch_cert_expires_in_seconds{source, namespace, name, severity}
-trustwatch_probe_success{source, namespace, name}
+trustwatch_cert_not_after_timestamp{source, namespace, name, severity, cluster}
+trustwatch_cert_expires_in_seconds{source, namespace, name, severity, cluster}
+trustwatch_probe_success{source, namespace, name, cluster}
 trustwatch_scan_duration_seconds
 trustwatch_findings_total{severity}
 trustwatch_discovery_errors_total{source}
 trustwatch_chain_errors_total{source}
 ```
+
+## TrustPolicy CRD
+
+Declarative policy rules via `trustwatch.dev/v1alpha1` TrustPolicy resources:
+
+```bash
+# Install the CRD
+trustwatch apply
+
+# List active policies
+trustwatch policy
+```
+
+Example TrustPolicy:
+
+```yaml
+apiVersion: trustwatch.dev/v1alpha1
+kind: TrustPolicy
+metadata:
+  name: production-standards
+spec:
+  targets:
+    - kind: Namespace
+      names: ["production", "kube-system"]
+  thresholds:
+    warnBefore: 720h
+    critBefore: 336h
+  rules:
+    - type: minKeySize
+      params:
+        bits: "2048"
+    - type: noSHA1
+    - type: requiredIssuer
+      params:
+        issuer: "CN=My CA"
+    - type: noSelfSigned
+```
+
+Policy violations appear as findings with source `policy` and finding type `POLICY_VIOLATION`.
 
 ## Configuration
 
@@ -299,8 +393,15 @@ refreshEvery: "2m"
 warnBefore: "720h"    # 30 days
 critBefore: "336h"    # 14 days
 namespaces: []         # empty = all
+historyDB: ""          # path to SQLite DB (enables /api/v1/history, /api/v1/trend)
+spiffeSocket: ""       # path to SPIFFE workload API socket
+otelEndpoint: ""       # OTLP gRPC endpoint (e.g. localhost:4317)
+clusterName: ""        # label for this cluster in federated views
 external:
   - url: "https://vault.internal:8200"
+remotes:               # remote trustwatch instances for federation
+  - name: staging
+    url: http://trustwatch.staging.svc:8080
 notifications:
   enabled: false
   webhooks:
@@ -324,18 +425,30 @@ trustwatch
 │   ├── Linkerd identity (trust roots + issuer)
 │   ├── Istio CA materials
 │   ├── Gateway API TLS refs
-│   ├── cert-manager Certificates
+│   ├── cert-manager Certificates + renewal health
+│   ├── SPIFFE/SPIRE trust bundles
+│   ├── Cloud providers (AWS ACM, GCP, Azure KV)
 │   └── Annotations (trustwatch.dev/*)
 ├── Probing (TLS handshake)
 │   ├── In-cluster endpoints
 │   ├── External targets (ConfigMap)
 │   └── SOCKS5 tunnel (--tunnel)
+├── Policy Engine
+│   ├── TrustPolicy CRD (trustwatch.dev/v1alpha1)
+│   └── Rules: min key size, no SHA-1, required issuer, no self-signed
+├── Federation
+│   ├── Remote snapshot aggregation (--remote name=url)
+│   └── Cluster labels on metrics and UI
+├── Storage
+│   ├── SQLite history (--history-db)
+│   └── Trend API (/api/v1/trend)
 ├── Output
 │   ├── TUI (now mode)
-│   ├── Web UI (serve mode)
+│   ├── Web UI (serve mode, filterable with detail panels + sparklines)
 │   ├── Prometheus metrics
 │   ├── JSON API
-│   └── Notifications (Slack, generic webhook)
+│   ├── Notifications (Slack, generic webhook)
+│   └── OpenTelemetry traces (--otel-endpoint)
 └── Severity
     ├── Critical: expired, webhook Fail, within crit threshold
     ├── Warn: within warn threshold, webhook Ignore (capped¹), insecureSkipTLSVerify
@@ -355,10 +468,12 @@ trustwatch needs **read-only** cluster-wide access. The Helm chart creates a Clu
 | `""` (core) | secrets, services, configmaps, namespaces | list, watch |
 | `admissionregistration.k8s.io` | validatingwebhookconfigurations, mutatingwebhookconfigurations | list, watch |
 | `apiregistration.k8s.io` | apiservices | list, watch |
+| `apiextensions.k8s.io` | customresourcedefinitions | get, create, update |
 | `apps` | deployments | list, watch |
 | `networking.k8s.io` | ingresses | list, watch |
 | `gateway.networking.k8s.io` | gateways | list, watch |
-| `cert-manager.io` | certificates | list, watch |
+| `cert-manager.io` | certificates, certificaterequests, challenges | list, watch |
+| `trustwatch.dev` | trustpolicies | list, watch |
 | `authorization.k8s.io` | selfsubjectaccessreviews | create |
 
 When `--namespace` is used, trustwatch probes its own permissions via `SelfSubjectAccessReview` and silently skips namespaces where it lacks access. This allows namespace-scoped RBAC without 403 errors in the output.
@@ -373,8 +488,8 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 
 ### Data Retention
 
-- **`now` mode**: Snapshot exists only in memory for the duration of the TUI session. Nothing is written to disk.
-- **`serve` mode**: The latest snapshot is held in memory and served via `/api/v1/snapshot`. No historical data is stored. Prometheus metrics are exported for external retention.
+- **`now` mode**: Snapshot exists only in memory for the duration of the TUI session. Nothing is written to disk unless `--history-db` is set.
+- **`serve` mode**: The latest snapshot is held in memory and served via `/api/v1/snapshot`. When `--history-db` is configured, snapshots are persisted to a local SQLite database for trend analysis.
 - **No PII**: trustwatch stores certificate metadata (subject, issuer, SANs, serial, expiry). It does not store certificate private keys, request bodies, or user data.
 
 ## Stability
@@ -389,8 +504,10 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - Does not detect certs served via Envoy SDS that aren't backed by Kubernetes Secrets
 - Cannot probe endpoints blocked by NetworkPolicy from trustwatch's namespace
 - Mesh leaf/workload certs (24h default) are intentionally ignored to avoid noise
-- No TrustPolicy CRD yet — annotations and ConfigMap only (CRD on roadmap)
-- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services, gateways, certificates
+- Cloud provider discovery requires build tags (`aws`, `gcp`, `azure`) — not included in the default binary
+- SPIFFE discovery requires a reachable workload API socket
+- Historical storage uses local SQLite — not suitable for HA deployments with multiple replicas
+- Requires RBAC read access to secrets, webhooks, apiservices, ingresses, services, gateways, certificates, trustpolicies
 - `--tunnel` mode may log `connection reset by peer` errors from the Kubernetes port-forward layer — these are cosmetic and caused by unreachable probe targets closing the SOCKS5 connection; probe results are unaffected
 
 ## Roadmap
@@ -416,7 +533,14 @@ External targets are configured via a ConfigMap (in `serve` mode) or CLI config 
 - [x] Webhook and Slack notifications
 - [x] Certificate chain validation (broken chains, wrong SANs, self-signed leaves)
 - [x] Signed container images + SBOM attestation (Cosign/Sigstore)
-- [ ] TrustPolicy CRD (future)
+- [x] TrustPolicy CRD with policy rules engine
+- [x] cert-manager renewal health monitoring
+- [x] Historical snapshot storage (SQLite) with trend API
+- [x] SPIFFE/SPIRE trust bundle discovery
+- [x] Cloud provider certs (AWS ACM, GCP, Azure Key Vault)
+- [x] OpenTelemetry tracing
+- [x] Multi-cluster federation
+- [x] Web UI filtering, detail panels, and trend sparklines
 
 ## License
 
