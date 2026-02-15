@@ -5,25 +5,41 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
 // Orchestrator runs all discoverers concurrently and classifies findings.
 type Orchestrator struct {
 	nowFn       func() time.Time
+	policies    []policy.TrustPolicy
 	discoverers []Discoverer
 	warnBefore  time.Duration
 	critBefore  time.Duration
 }
 
+// OrchestratorOption configures an Orchestrator.
+type OrchestratorOption func(*Orchestrator)
+
+// WithPolicies adds TrustPolicy CRs for policy engine evaluation.
+func WithPolicies(policies []policy.TrustPolicy) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.policies = policies
+	}
+}
+
 // NewOrchestrator creates an orchestrator with the given thresholds.
-func NewOrchestrator(discoverers []Discoverer, warnBefore, critBefore time.Duration) *Orchestrator {
-	return &Orchestrator{
+func NewOrchestrator(discoverers []Discoverer, warnBefore, critBefore time.Duration, opts ...OrchestratorOption) *Orchestrator {
+	o := &Orchestrator{
 		discoverers: discoverers,
 		warnBefore:  warnBefore,
 		critBefore:  critBefore,
 		nowFn:       time.Now,
 	}
+	for _, opt := range opts {
+		opt(o)
+	}
+	return o
 }
 
 // Run executes all discoverers concurrently and returns a classified snapshot.
@@ -65,6 +81,13 @@ func (o *Orchestrator) Run() store.Snapshot {
 	}
 
 	o.classifyFindings(allFindings, now)
+
+	// Evaluate policy rules
+	if len(o.policies) > 0 {
+		engine := policy.NewEngine(o.policies)
+		violations := engine.Evaluate(allFindings)
+		allFindings = append(allFindings, violations...)
+	}
 
 	snap := store.Snapshot{
 		At:       now,

@@ -220,7 +220,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		discoverers = append(discoverers, discovery.NewSPIFFEDiscoverer(spiffeSocket))
 	}
 
-	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
+	var orchOpts []discovery.OrchestratorOption
+	if len(loadedPolicies) > 0 {
+		orchOpts = append(orchOpts, discovery.WithPolicies(loadedPolicies))
+	}
+	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 
 	// Notifications (nil if not configured)
 	notifier := notify.New(cfg.Notifications)

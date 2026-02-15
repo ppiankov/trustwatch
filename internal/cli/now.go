@@ -269,7 +269,11 @@ func runNow(cmd *cobra.Command, _ []string) error {
 
 	// Run discovery
 	slog.Info("scanning discovery sources", "count", len(discoverers))
-	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore)
+	var orchOpts []discovery.OrchestratorOption
+	if len(loadedPolicies) > 0 {
+		orchOpts = append(orchOpts, discovery.WithPolicies(loadedPolicies))
+	}
+	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 	snap := orch.Run()
 	slog.Info("scan complete", "findings", len(snap.Findings))
 
