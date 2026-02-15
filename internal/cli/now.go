@@ -267,6 +267,8 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		discoverers = append(discoverers, discovery.NewSPIFFEDiscoverer(spiffeSocket))
 	}
 
+	discoverers = append(discoverers, discovery.CloudDiscoverers()...)
+
 	// Run discovery
 	slog.Info("scanning discovery sources", "count", len(discoverers))
 	var orchOpts []discovery.OrchestratorOption
