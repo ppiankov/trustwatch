@@ -30,6 +30,12 @@ func TestRootCommand_Help(t *testing.T) {
 	if !strings.Contains(out, "rules") {
 		t.Error("expected 'rules' subcommand in help output")
 	}
+	if !strings.Contains(out, "apply") {
+		t.Error("expected 'apply' subcommand in help output")
+	}
+	if !strings.Contains(out, "policy") {
+		t.Error("expected 'policy' subcommand in help output")
+	}
 }
 
 func TestVersionCommand(t *testing.T) {
