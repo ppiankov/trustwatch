@@ -4,8 +4,15 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"testing"
+	"time"
 )
+
+func TestMain(m *testing.M) {
+	retryDelay = time.Millisecond
+	os.Exit(m.Run())
+}
 
 func TestFormatTarget(t *testing.T) {
 	tests := []struct {
@@ -101,6 +108,95 @@ func TestProbeWithDialer_UnsupportedScheme(t *testing.T) {
 	result := ProbeWithDialer("ftp://example.com:21", dialFn)
 	if result.ProbeOK {
 		t.Error("expected probe to fail for unsupported scheme")
+	}
+}
+
+func TestProbeRetry_TransientDialFailure(t *testing.T) {
+	calls := 0
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		calls++
+		if calls <= 2 {
+			return nil, errors.New("connection refused")
+		}
+		// Third attempt: return a conn that will fail TLS handshake
+		// (we just need to verify dial was retried)
+		c, _ := net.Pipe()
+		c.Close()
+		return c, nil
+	}
+
+	result := ProbeWithDialer("tcp://example.com:443", dialFn)
+	if calls != 3 {
+		t.Errorf("expected 3 dial attempts, got %d", calls)
+	}
+	if result.RetryCount != 2 {
+		t.Errorf("expected RetryCount=2, got %d", result.RetryCount)
+	}
+}
+
+func TestProbeRetry_AllRetriesExhausted(t *testing.T) {
+	calls := 0
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		calls++
+		return nil, errors.New("connection refused")
+	}
+
+	result := ProbeWithDialer("tcp://example.com:443", dialFn)
+	if result.ProbeOK {
+		t.Error("expected probe to fail when all retries exhausted")
+	}
+	if calls != 3 { // 1 initial + 2 retries
+		t.Errorf("expected 3 dial attempts, got %d", calls)
+	}
+	if result.RetryCount != 2 {
+		t.Errorf("expected RetryCount=2, got %d", result.RetryCount)
+	}
+	if result.ProbeErr != "connection refused" {
+		t.Errorf("expected last dial error, got %q", result.ProbeErr)
+	}
+}
+
+func TestProbeRetry_NoRetryOnHandshakeFailure(t *testing.T) {
+	calls := 0
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		calls++
+		// Return a pipe that doesn't speak TLS — handshake will fail
+		c, s := net.Pipe()
+		go func() {
+			s.Write([]byte("not tls")) //nolint:errcheck // test helper, write error irrelevant
+			s.Close()
+		}()
+		return c, nil
+	}
+
+	result := ProbeWithDialer("tcp://example.com:443", dialFn)
+	if result.ProbeOK {
+		t.Error("expected probe to fail on TLS handshake error")
+	}
+	if calls != 1 {
+		t.Errorf("expected 1 dial attempt (no retry on handshake error), got %d", calls)
+	}
+	if result.RetryCount != 0 {
+		t.Errorf("expected RetryCount=0, got %d", result.RetryCount)
+	}
+}
+
+func TestProbeRetry_ImmediateDialSuccess(t *testing.T) {
+	calls := 0
+	dialFn := func(_ context.Context, _, _ string) (net.Conn, error) {
+		calls++
+		// Succeeds but handshake will fail — we just check dial wasn't retried
+		c, _ := net.Pipe()
+		c.Close()
+		return c, nil
+	}
+
+	result := ProbeWithDialer("tcp://example.com:443", dialFn)
+	if calls != 1 {
+		t.Errorf("expected 1 dial attempt, got %d", calls)
+	}
+	if result.RetryCount != 0 {
+		t.Errorf("expected RetryCount=0, got %d", result.RetryCount)
 	}
 }
 
