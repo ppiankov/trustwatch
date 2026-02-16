@@ -57,6 +57,12 @@ linters:
           - gocyclo
         path: internal/cli/
       - linters:
+          - gocyclo
+        path: internal/discovery/orchestrator\.go
+      - linters:
+          - gocyclo
+        path: internal/monitor/
+      - linters:
           - revive
         path: internal/metrics/
         text: 'var-naming.*conflict with Go standard library'

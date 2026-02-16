@@ -5,24 +5,37 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"net"
 	"net/url"
 	"time"
 
 	"github.com/ppiankov/trustwatch/internal/chain"
+	"github.com/ppiankov/trustwatch/internal/probe"
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
-// applyProbeChainValidation runs chain validation on a probe result and populates finding fields.
-func applyProbeChainValidation(finding *store.CertFinding, certs []*x509.Certificate, hostname string) {
-	finding.ChainLen = len(certs)
-	if len(certs) > 0 {
-		applyCertMetadata(finding, certs[0], certs)
+// applyProbeChainValidation runs chain and posture validation on a probe result and populates finding fields.
+func applyProbeChainValidation(finding *store.CertFinding, pr probe.Result, hostname string) {
+	finding.ChainLen = len(pr.Chain)
+	if len(pr.Chain) > 0 {
+		applyCertMetadata(finding, pr.Chain[0], pr.Chain)
 	}
-	result := chain.ValidateChain(certs, hostname, time.Now())
+	result := chain.ValidateChain(pr.Chain, hostname, time.Now())
 	if len(result.Errors) > 0 {
 		finding.ChainErrors = result.Errors
+	}
+
+	// TLS posture from handshake metadata
+	if pr.TLSVersion != 0 {
+		finding.TLSVersion = tls.VersionName(pr.TLSVersion)
+	}
+	if pr.CipherSuite != 0 {
+		finding.CipherSuite = tls.CipherSuiteName(pr.CipherSuite)
+	}
+	if issues := probe.EvaluatePosture(pr.TLSVersion, pr.CipherSuite); len(issues) > 0 {
+		finding.PostureIssues = issues
 	}
 }
 

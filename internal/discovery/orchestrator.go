@@ -162,5 +162,10 @@ func (o *Orchestrator) classifyFindings(findings []store.CertFinding, now time.T
 		if len(f.ChainErrors) > 0 && f.Severity == store.SeverityInfo {
 			f.Severity = store.SeverityWarn
 		}
+
+		// Posture issues escalate info to warn (weak TLS config)
+		if len(f.PostureIssues) > 0 && f.Severity == store.SeverityInfo {
+			f.Severity = store.SeverityWarn
+		}
 	}
 }
