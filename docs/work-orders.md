@@ -811,3 +811,227 @@ WO-T37 (OTel Traces) ───────────────────�
 
 Critical path: T29 → T34 (policy engine needs CRD first).
 High-value standalone: T33 (renewal health), T31 (history), T30 (SPIFFE).
+
+---
+
+## Phase 3: Trust Surface Depth
+
+Phase 3 extends trustwatch from certificate expiry monitoring to full trust surface auditing. The probe already does the TLS handshake — Phase 3 extracts more value from that handshake and builds dependency intelligence on top of existing discovery data.
+
+### WO-T38: TLS posture audit
+
+**Goal**: Extract TLS protocol and cipher data from the handshake the probe already performs. Report weak configurations as findings.
+
+**Details**:
+- The probe calls `tls.Client()` and reads `ConnectionState()` — this already contains `Version`, `CipherSuite`, `NegotiatedProtocol`
+- Extend `probe.Result` to capture these fields
+- Add new finding types for weak configurations
+- Evaluate against hardcoded thresholds (no policy CRD needed — policy engine can override later)
+
+**New finding types**:
+- `WEAK_TLS_VERSION` — TLS 1.0 or 1.1 accepted (severity: critical)
+- `WEAK_CIPHER` — RC4, 3DES, NULL, export ciphers (severity: critical); CBC-mode ciphers (severity: warn)
+- `NO_HSTS` — HTTPS endpoint missing `Strict-Transport-Security` header (severity: warn, only for `https://` scheme probes)
+
+**Steps**:
+1. Extend `probe.Result`: add `TLSVersion uint16`, `CipherSuite uint16`, `NegotiatedProtocol string`, `HSTSHeader string`
+2. Capture from `tlsConn.ConnectionState()` after handshake — zero additional network cost
+3. For `https://` targets only: issue HTTP GET to read HSTS header (optional, behind flag `--check-hsts`)
+4. Add `internal/probe/posture.go` — `EvaluatePosture(Result) []PostureFinding` with weak version/cipher/HSTS checks
+5. Wire posture findings into orchestrator — append to snapshot alongside cert findings
+6. Add `TLSVersion`, `CipherSuite` fields to `CertFinding` (or create separate `PostureFinding` type)
+7. Update TUI/table/JSON formatters to display posture findings
+
+**Files**:
+- `internal/probe/tls.go` — extend Result struct, capture ConnectionState fields
+- `internal/probe/posture.go` — new file: posture evaluation logic
+- `internal/probe/posture_test.go` — new file: tests with known-weak configurations
+- `internal/store/store.go` — add TLS posture fields or new finding types
+- `internal/discovery/orchestrator.go` — wire posture evaluation after probe
+- `internal/monitor/tui.go`, `table.go`, `json.go` — display posture findings
+
+**Verification**: `make test` passes with -race. Probe against a TLS 1.2 endpoint returns `TLSVersion` and `CipherSuite`. Probe against intentionally weak test server returns `WEAK_TLS_VERSION` finding.
+
+---
+
+### WO-T39: kubectl plugin packaging
+
+**Goal**: Package trustwatch as a kubectl plugin installable via krew.
+
+**Details**:
+- kubectl discovers plugins by finding `kubectl-<name>` binaries on PATH
+- Krew is the package manager — needs a manifest YAML in `krew-index` or a custom plugin index
+- The binary already works standalone — this is packaging, not code changes
+
+**Steps**:
+1. Add `kubectl-trustwatch` symlink/rename target to Makefile (`make kubectl-plugin`)
+2. Create `.krew.yaml` manifest with plugin metadata, platforms, sha256
+3. Add krew install instructions to README
+4. Update Homebrew formula to also install `kubectl-trustwatch` symlink
+5. Add CI step to generate krew manifest on release (sha256 from goreleaser)
+
+**Files**:
+- `Makefile` — add `kubectl-plugin` target
+- `.krew.yaml` — new file: krew plugin manifest
+- `.goreleaser.yml` — add kubectl-trustwatch binary name
+- `README.md` — add krew install instructions
+
+**Verification**: `kubectl trustwatch now --kubeconfig ...` works after `make kubectl-plugin && cp bin/kubectl-trustwatch /usr/local/bin/`. `kubectl plugin list` shows trustwatch.
+
+---
+
+### WO-T40: Revocation checking (OCSP + CRL)
+
+**Goal**: Check certificate revocation status during probe. A revoked intermediate silently breaks trust chains — trustwatch already has the chain, checking revocation is the natural next step.
+
+**Details**:
+- Parse `OCSPServer` URLs from leaf certificate's Authority Information Access (AIA) extension
+- Parse `CRLDistributionPoints` from certificate extensions
+- OCSP: build request, send to responder, parse response status
+- CRL: fetch from distribution point, parse, check serial number against revoked list
+- Cache CRL responses (they're large and change infrequently) — in-memory with TTL matching CRL nextUpdate
+- OCSP stapling: check `ConnectionState().OCSPResponse` from the handshake (already available, currently discarded)
+
+**New finding types**:
+- `CERT_REVOKED` — OCSP or CRL confirms revocation (severity: critical)
+- `OCSP_UNREACHABLE` — OCSP responder unreachable after retries (severity: warn)
+- `CRL_STALE` — CRL past its nextUpdate time, can't confirm status (severity: warn)
+- `OCSP_STAPLE_MISSING` — server supports OCSP but doesn't staple (severity: info)
+- `OCSP_STAPLE_INVALID` — stapled response is expired or malformed (severity: warn)
+
+**Steps**:
+1. Extend `probe.Result`: add `OCSPResponse []byte` from `ConnectionState().OCSPResponse`
+2. Create `internal/revocation/ocsp.go` — build OCSP request, send HTTP POST to AIA responder, parse response
+3. Create `internal/revocation/crl.go` — fetch CRL from distribution point, parse ASN.1, check serial
+4. Create `internal/revocation/cache.go` — in-memory CRL cache with TTL from nextUpdate
+5. Wire into orchestrator: after probe + chain validation, run revocation check
+6. Flag `--check-revocation` (off by default — adds network calls per cert)
+
+**Files**:
+- `internal/probe/tls.go` — capture OCSPResponse from ConnectionState
+- `internal/revocation/ocsp.go` — new file: OCSP checking
+- `internal/revocation/crl.go` — new file: CRL checking
+- `internal/revocation/cache.go` — new file: CRL cache
+- `internal/revocation/revocation_test.go` — new file: tests with mock OCSP/CRL responders
+- `internal/store/store.go` — add revocation finding types
+- `internal/discovery/orchestrator.go` — wire revocation checks
+
+**Verification**: `make test` passes with -race. Test with a known-revoked certificate returns `CERT_REVOKED` finding. Test with unreachable OCSP returns `OCSP_UNREACHABLE`.
+
+---
+
+### WO-T41: CI/CD gate command (`trustwatch check`)
+
+**Goal**: Pre-deploy validation command that exits non-zero on policy violations. Makes trustwatch a structural safeguard in pipelines, not just monitoring.
+
+**Details**:
+- `trustwatch check` runs discovery + probe + policy evaluation, then exits with code based on findings
+- Designed for CI/CD: no TUI, no serve mode, just scan → evaluate → exit code
+- Supports `--policy` flag to specify policy file (YAML or TrustPolicy CRD)
+- Supports `--max-severity` flag: fail if any finding at or above this severity (default: critical)
+- Machine-readable output: `--output json` for pipeline parsing
+
+**Usage**:
+```yaml
+# GitHub Actions
+- name: Trust surface check
+  run: trustwatch check --policy policy.yaml --max-severity warn --output json
+```
+
+**Steps**:
+1. Create `internal/cli/check.go` — new Cobra command
+2. Reuse orchestrator for discovery + probe
+3. Reuse policy engine for evaluation
+4. Exit code logic: 0=pass, 1=warn findings, 2=critical findings, 3=error
+5. Add `--policy` flag (file path to policy YAML)
+6. Add `--max-severity` flag (info/warn/critical — fail threshold)
+7. Add `--deploy-window` flag (e.g., `24h` — fail if any cert expires within window)
+8. JSON output includes finding count per severity + list of violations
+
+**Files**:
+- `internal/cli/check.go` — new file: check command implementation
+- `internal/cli/check_test.go` — new file: tests for exit code logic, severity threshold
+- `internal/cli/root.go` — register check subcommand
+
+**Verification**: `make test` passes. `trustwatch check --policy test-policy.yaml` returns exit code 0 when no violations, exit code 2 when critical findings exist. JSON output parseable by `jq`.
+
+---
+
+### WO-T42: Rotation impact analysis
+
+**Goal**: Answer "if I rotate this CA, what breaks?" by building a dependency graph from discovered issuer chains.
+
+**Details**:
+- trustwatch already discovers every cert and its full chain (issuer, intermediates, root)
+- Build a reverse index: issuer → list of findings that depend on it
+- `trustwatch impact --issuer "CN=My Intermediate"` lists all services, namespaces, severity affected
+- `trustwatch impact --serial <hex>` for exact cert match
+- Show blast radius: count of affected findings, namespaces, clusters
+
+**Steps**:
+1. Create `internal/impact/graph.go` — build issuer dependency graph from snapshot findings
+2. Create `internal/impact/query.go` — query by issuer DN, serial, or subject pattern
+3. Create `internal/cli/impact.go` — Cobra command with `--issuer`, `--serial`, `--subject` flags
+4. Output: table (default) or JSON with affected findings grouped by namespace/cluster
+5. Severity inheritance: if root is rotated, all transitive dependents inherit the blast radius
+
+**Files**:
+- `internal/impact/graph.go` — new file: issuer dependency graph
+- `internal/impact/query.go` — new file: query + blast radius calculation
+- `internal/impact/impact_test.go` — new file: tests with multi-level issuer chains
+- `internal/cli/impact.go` — new file: impact command
+- `internal/cli/root.go` — register impact subcommand
+
+**Verification**: `make test` passes with -race. Given a snapshot with 3 certs sharing an intermediate, `trustwatch impact --issuer "CN=intermediate"` returns all 3 findings with namespace and severity.
+
+---
+
+### WO-T43: Certificate Transparency log monitoring
+
+**Goal**: Watch CT logs for certificates issued for your domains that you didn't request. Detects rogue CA issuance, compromised ACME accounts, and shadow IT cert provisioning.
+
+**Details**:
+- Query CT log APIs (Google Argon, Cloudflare Nimbus, etc.) for certificates matching configured domains
+- Compare against known certificates from trustwatch discovery
+- Flag unknown certificates as findings
+- Runs as a background discoverer in `serve` mode or ad-hoc via `trustwatch ct-check`
+
+**New finding types**:
+- `CT_UNKNOWN_CERT` — certificate in CT log not found in cluster (severity: warn)
+- `CT_ROGUE_ISSUER` — certificate issued by unexpected CA (severity: critical)
+
+**Steps**:
+1. Create `internal/ct/monitor.go` — CT log API client, domain matching, known-cert comparison
+2. Create `internal/ct/monitor_test.go` — tests with mock CT API responses
+3. Create `internal/discovery/ct.go` — CTDiscoverer implementing Discoverer interface
+4. Add `--ct-domains` flag (comma-separated list of domains to monitor)
+5. Add `--ct-interval` flag for serve mode polling (default: 1h)
+6. Register as optional discoverer in orchestrator
+
+**Files**:
+- `internal/ct/monitor.go` — new file: CT log API client
+- `internal/ct/monitor_test.go` — new file: tests
+- `internal/discovery/ct.go` — new file: CTDiscoverer
+- `internal/cli/root.go` — add CT flags
+
+**Verification**: `make test` passes. Mock CT API returns a cert not in snapshot → `CT_UNKNOWN_CERT` finding generated.
+
+---
+
+## Phase 3 Execution Order
+
+```
+WO-T38 (TLS posture) ────────────→ standalone, low effort, high value
+WO-T39 (kubectl plugin) ─────────→ standalone, trivial packaging
+WO-T40 (Revocation) ─────────────→ standalone, needs new internal/revocation/
+WO-T41 (CI/CD gate) ─────────────→ standalone, reuses orchestrator + policy
+WO-T42 (Impact analysis) ────────→ standalone, needs snapshot data
+WO-T43 (CT monitoring) ──────────→ standalone, needs external API
+```
+
+Suggested shipping order:
+- **3a** (ship together): WO-T38 (TLS posture) + WO-T39 (kubectl plugin)
+- **3b** (ship together): WO-T40 (Revocation) + WO-T41 (CI/CD gate)
+- **3c** (ship together): WO-T42 (Impact analysis) + WO-T43 (CT monitoring)
+
+No dependencies between Phase 3 WOs — all can be parallelized if needed.
