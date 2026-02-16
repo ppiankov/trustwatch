@@ -127,13 +127,16 @@ func (n *Notifier) computeResolved(prev, curr store.Snapshot) []string {
 
 // dispatch sends new findings and resolve events to all configured webhooks.
 func (n *Notifier) dispatch(newFindings []store.CertFinding, resolvedKeys []string) {
-	for _, wh := range n.webhooks {
+	for i := range n.webhooks {
+		wh := &n.webhooks[i]
 		if len(newFindings) > 0 {
 			switch wh.Type {
 			case "slack":
 				n.sendSlack(wh.URL, newFindings)
 			case "pagerduty":
 				n.sendPagerDuty(wh, newFindings)
+			case "grafana":
+				n.sendGrafana(wh, newFindings)
 			default:
 				n.sendGeneric(wh.URL, newFindings)
 			}
