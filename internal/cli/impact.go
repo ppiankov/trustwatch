@@ -17,6 +17,7 @@ import (
 	gatewayclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
 	"github.com/ppiankov/trustwatch/internal/config"
+	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/discovery"
 	"github.com/ppiankov/trustwatch/internal/impact"
 	"github.com/ppiankov/trustwatch/internal/monitor"
@@ -67,6 +68,8 @@ func init() {
 	impactCmd.Flags().StringSlice("tunnel-command", nil, "Override container command")
 	impactCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
 	impactCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
+	impactCmd.Flags().StringSlice("ct-domains", nil, "Domains to monitor in CT logs")
+	impactCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
 	impactCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
 	impactCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: table)")
 
@@ -283,6 +286,17 @@ func runImpact(cmd *cobra.Command, _ []string) error { //nolint:dupl // intentio
 	checkRevocation, _ := cmd.Flags().GetBool("check-revocation") //nolint:errcheck // flag registered above
 	if checkRevocation {
 		orchOpts = append(orchOpts, discovery.WithCheckRevocation(revocation.NewCRLCache()))
+	}
+	ctDomains, _ := cmd.Flags().GetStringSlice("ct-domains") //nolint:errcheck // flag registered above
+	if len(ctDomains) == 0 {
+		ctDomains = cfg.CTDomains
+	}
+	ctIssuers, _ := cmd.Flags().GetStringSlice("ct-allowed-issuers") //nolint:errcheck // flag registered above
+	if len(ctIssuers) == 0 {
+		ctIssuers = cfg.CTAllowedIssuers
+	}
+	if len(ctDomains) > 0 {
+		orchOpts = append(orchOpts, discovery.WithCTCheck(ctDomains, ctIssuers, ct.NewClient()))
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 	snap := orch.Run()

@@ -21,8 +21,8 @@ func TestImpactCommand_Flags(t *testing.T) {
 		"config", "kubeconfig", "context", "namespace",
 		"warn-before", "crit-before",
 		"tunnel", "tunnel-ns", "tunnel-image",
-		"check-revocation", "spiffe-socket",
-		"output",
+		"check-revocation", "ct-domains", "ct-allowed-issuers",
+		"spiffe-socket", "output",
 	}
 	for _, name := range flags {
 		if impactCmd.Flags().Lookup(name) == nil {
