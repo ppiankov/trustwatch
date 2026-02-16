@@ -70,10 +70,12 @@ type CertFinding struct {
 	RevocationIssues   []string          `json:"revocationIssues,omitempty"`
 	PostureIssues      []string          `json:"postureIssues,omitempty"`
 	OCSPStaple         []byte            `json:"-"`
+	CertDuration       time.Duration     `json:"certDuration,omitempty"`
 	ChainLen           int               `json:"chainLen,omitempty"`
 	KeySize            int               `json:"keySize,omitempty"`
 	ProbeOK            bool              `json:"probeOk"`
 	SelfSigned         bool              `json:"selfSigned,omitempty"`
+	IsCA               bool              `json:"isCA,omitempty"`
 }
 
 // Snapshot is a point-in-time collection of findings.

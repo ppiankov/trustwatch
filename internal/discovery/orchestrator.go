@@ -14,6 +14,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/revocation"
+	"github.com/ppiankov/trustwatch/internal/rotation"
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
@@ -132,6 +133,10 @@ func (o *Orchestrator) Run() store.Snapshot {
 
 	o.classifyFindings(allFindings, now)
 	applyManagedExpiry(allFindings)
+
+	// Check for excessive rotation frequency
+	rotationFindings := rotation.Check(allFindings)
+	allFindings = append(allFindings, rotationFindings...)
 
 	// Run revocation checks if enabled
 	if o.crlCache != nil {

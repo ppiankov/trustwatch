@@ -97,6 +97,8 @@ func applyCertMetadata(finding *store.CertFinding, leaf *x509.Certificate, certs
 		finding.KeySize = 256
 	}
 
+	finding.IsCA = leaf.IsCA
+
 	// Self-signed: single cert in chain with issuer == subject
 	if len(certs) == 1 {
 		finding.SelfSigned = bytes.Equal(leaf.RawIssuer, leaf.RawSubject)

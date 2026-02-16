@@ -116,6 +116,14 @@ func (d *CertManagerDiscoverer) populateSpecFields(f *store.CertFinding, spec ma
 			}
 		}
 	}
+	if durStr, ok := spec["duration"].(string); ok {
+		if d, err := time.ParseDuration(durStr); err == nil {
+			f.CertDuration = d
+		}
+	}
+	if isCA, ok := spec["isCA"].(bool); ok && isCA {
+		f.IsCA = true
+	}
 	if issuerRef, ok := spec["issuerRef"].(map[string]interface{}); ok {
 		issuerName, _ := issuerRef["name"].(string) //nolint:errcheck // type assertion to zero value
 		issuerKind, _ := issuerRef["kind"].(string) //nolint:errcheck // type assertion to zero value
