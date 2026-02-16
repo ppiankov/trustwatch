@@ -4,16 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"net/url"
 	"os"
-	"strings"
+	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	aggregatorclient "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
@@ -21,8 +17,6 @@ import (
 
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/discovery"
-	"github.com/ppiankov/trustwatch/internal/federation"
-	"github.com/ppiankov/trustwatch/internal/history"
 	"github.com/ppiankov/trustwatch/internal/monitor"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/probe"
@@ -32,69 +26,67 @@ import (
 	"github.com/ppiankov/trustwatch/internal/tunnel"
 )
 
-var nowCmd = &cobra.Command{
-	Use:   "now",
-	Short: "Show trust surface problems right now",
-	Long: `Discover and probe all trust surfaces, display problems in a TUI.
-
-Discovers webhooks, APIServices, TLS secrets, ingresses, mesh issuers,
-annotated services, and external targets. Probes each via TLS handshake
-and reports expiring or expired certificates.
+var checkCmd = &cobra.Command{
+	Use:   "check",
+	Short: "CI/CD gate — scan and exit non-zero on policy violations",
+	Long: `Run discovery, probe, and policy evaluation, then exit with a code
+based on findings. Designed for CI/CD pipelines — no TUI, just
+scan → evaluate → exit code.
 
 Exit codes:
-  0  No problems found
-  1  Warnings exist (certs expiring within warn threshold)
-  2  Critical problems (certs expiring within crit threshold or expired)
+  0  No problems found (or below --max-severity threshold)
+  1  Warnings exist at or above --max-severity threshold
+  2  Critical problems found
   3  Discovery or probe errors`,
-	Example: `  # Scan current cluster
-  trustwatch now
+	Example: `  # Basic check — fail on critical findings
+  trustwatch check
 
-  # Scan a specific context with custom thresholds
-  trustwatch now --context prod --warn-before 360h --crit-before 168h
+  # Fail on warnings too
+  trustwatch check --max-severity warn
 
-  # JSON output for automation
-  trustwatch now --output json
+  # Fail if any cert expires within 24h
+  trustwatch check --deploy-window 24h
 
-  # Table output even in a terminal
-  trustwatch now -o table
+  # Use a policy file
+  trustwatch check --policy policy.yaml
 
-  # CI gate: exit code only, no output
-  trustwatch now --quiet && echo "All certs OK"
+  # JSON output for pipeline parsing
+  trustwatch check --output json
 
-  # JSON piped to jq
-  trustwatch now -o json | jq '.snapshot.findings[] | select(.severity == "critical")'
+  # Quiet mode — exit code only
+  trustwatch check --quiet
 
-  # Scan through an in-cluster SOCKS5 relay (resolves cluster DNS)
-  trustwatch now --tunnel
-
-  # Air-gapped cluster using trustwatch as its own relay
-  trustwatch now --tunnel --tunnel-image my-registry.io/trustwatch:v0.1.1 --tunnel-command /trustwatch,socks5`,
-	RunE: runNow,
+  # GitHub Actions example
+  # - name: Trust surface check
+  #   run: trustwatch check --policy policy.yaml --max-severity warn -o json`,
+	RunE: runCheck,
 }
 
 func init() {
-	rootCmd.AddCommand(nowCmd)
-	nowCmd.Flags().String("config", "", "Path to config file")
-	nowCmd.Flags().String("kubeconfig", "", "Path to kubeconfig")
-	nowCmd.Flags().String("context", "", "Kubernetes context to use")
-	nowCmd.Flags().StringSlice("namespace", nil, "Namespaces to scan (empty = all)")
-	nowCmd.Flags().Duration("warn-before", 0, "Warn threshold (default from config)")
-	nowCmd.Flags().Duration("crit-before", 0, "Critical threshold (default from config)")
-	nowCmd.Flags().Bool("tunnel", false, "Deploy a SOCKS5 relay pod to route probes through in-cluster DNS")
-	nowCmd.Flags().String("tunnel-ns", "default", "Namespace for the tunnel relay pod")
-	nowCmd.Flags().String("tunnel-image", tunnel.DefaultImage, "SOCKS5 proxy image for --tunnel")
-	nowCmd.Flags().StringSlice("tunnel-command", nil, "Override container command (e.g. 'microsocks,-p,1080')")
-	nowCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
-	nowCmd.Flags().String("history-db", "", "Path to SQLite history database (save snapshot)")
-	nowCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
-	nowCmd.Flags().String("cluster-name", "", "Name for this cluster in federated views")
-	nowCmd.Flags().StringSlice("remote", nil, "Remote trustwatch URLs (name=url format)")
-	nowCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: auto-detect TTY)")
-	nowCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
-	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
+	rootCmd.AddCommand(checkCmd)
+	checkCmd.Flags().String("config", "", "Path to config file")
+	checkCmd.Flags().String("kubeconfig", "", "Path to kubeconfig")
+	checkCmd.Flags().String("context", "", "Kubernetes context to use")
+	checkCmd.Flags().StringSlice("namespace", nil, "Namespaces to scan (empty = all)")
+	checkCmd.Flags().Duration("warn-before", 0, "Warn threshold (default from config)")
+	checkCmd.Flags().Duration("crit-before", 0, "Critical threshold (default from config)")
+	checkCmd.Flags().Bool("tunnel", false, "Deploy a SOCKS5 relay pod to route probes through in-cluster DNS")
+	checkCmd.Flags().String("tunnel-ns", "default", "Namespace for the tunnel relay pod")
+	checkCmd.Flags().String("tunnel-image", tunnel.DefaultImage, "SOCKS5 proxy image for --tunnel")
+	checkCmd.Flags().StringSlice("tunnel-command", nil, "Override container command")
+	checkCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
+	checkCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
+	checkCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
+	checkCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: table)")
+	checkCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only")
+
+	// CI-specific flags
+	checkCmd.Flags().String("policy", "", "Path to YAML policy file")
+	checkCmd.Flags().String("max-severity", "critical", "Fail threshold: info, warn, or critical")
+	checkCmd.Flags().Duration("deploy-window", 0, "Fail if any cert expires within this duration")
 }
 
-func runNow(cmd *cobra.Command, _ []string) error {
+func runCheck(cmd *cobra.Command, _ []string) error {
 	cfgPath, err := cmd.Flags().GetString("config")
 	if err != nil {
 		return err
@@ -120,6 +112,15 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	if len(ns) > 0 {
 		cfg.Namespaces = ns
 	}
+
+	// Parse CI-specific flags
+	maxSevStr, _ := cmd.Flags().GetString("max-severity") //nolint:errcheck // flag registered above
+	maxSev, err := parseSeverity(maxSevStr)
+	if err != nil {
+		return err
+	}
+	deployWindow, _ := cmd.Flags().GetDuration("deploy-window") //nolint:errcheck // flag registered above
+	policyPath, _ := cmd.Flags().GetString("policy")            //nolint:errcheck // flag registered above
 
 	// Build Kubernetes client
 	kubeconfig, err := cmd.Flags().GetString("kubeconfig")
@@ -165,13 +166,13 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("creating dynamic client: %w", err)
 	}
 
-	// Load TrustPolicy CRs if CRD is installed
+	// Load policies: cluster CRDs + file-based
 	loadedPolicies, loadErr := policy.LoadPolicies(context.Background(), clientset.Discovery(), dynClient)
 	if loadErr != nil {
 		slog.Warn("loading trust policies", "err", loadErr)
 	}
 	if len(loadedPolicies) > 0 {
-		slog.Info("loaded trust policies", "count", len(loadedPolicies))
+		slog.Info("loaded cluster policies", "count", len(loadedPolicies))
 		for i := range loadedPolicies {
 			for j := range loadedPolicies[i].Spec.Targets {
 				if loadedPolicies[i].Spec.Targets[j].Kind == "External" {
@@ -183,15 +184,16 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Resolve context name for display
-	if kubeCtx == "" {
-		raw, rawErr := clientConfig.RawConfig()
-		if rawErr == nil {
-			kubeCtx = raw.CurrentContext
+	if policyPath != "" {
+		filePolicies, fileErr := policy.LoadFromFile(policyPath)
+		if fileErr != nil {
+			return fmt.Errorf("loading policy file: %w", fileErr)
 		}
+		loadedPolicies = append(loadedPolicies, filePolicies...)
+		slog.Info("loaded file policy", "path", policyPath, "rules", len(filePolicies[0].Spec.Rules))
 	}
 
-	// Optionally start a SOCKS5 tunnel for in-cluster DNS resolution
+	// Optionally start a SOCKS5 tunnel
 	useTunnel, _ := cmd.Flags().GetBool("tunnel")                  //nolint:errcheck // flag registered above
 	tunnelNS, _ := cmd.Flags().GetString("tunnel-ns")              //nolint:errcheck // flag registered above
 	tunnelImg, _ := cmd.Flags().GetString("tunnel-image")          //nolint:errcheck // flag registered above
@@ -218,10 +220,10 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 	defer closeRelay()
 
-	// Derive API server host from kubeconfig for local probing
+	// Derive API server host
 	apiServerTarget := apiServerFromHost(restCfg.Host)
 
-	// Resolve namespaces for namespace-scoped discoverers
+	// Resolve namespaces
 	nsCtx := context.Background()
 	allNS, err := discovery.ResolveNamespaces(nsCtx, clientset, cfg.Namespaces)
 	if err != nil {
@@ -232,12 +234,8 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	svcNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "", "services")
 	gwNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "gateway.networking.k8s.io", "gateways")
 	certNS := discovery.FilterAccessible(nsCtx, clientset, allNS, "cert-manager.io", "certificates")
-	slog.Info("namespace access resolved", "total", len(allNS),
-		"secrets", len(secretNS), "ingresses", len(ingressNS),
-		"services", len(svcNS), "gateways", len(gwNS),
-		"certificates", len(certNS))
 
-	// Build discoverers — probing discoverers get the tunnel probe function when --tunnel is set
+	// Build discoverers
 	var webhookOpts []func(*discovery.WebhookDiscoverer)
 	var apiSvcOpts []func(*discovery.APIServiceDiscoverer)
 	var annotOpts []func(*discovery.AnnotationDiscoverer)
@@ -250,7 +248,7 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 	annotOpts = append(annotOpts, discovery.WithAnnotationNamespaces(svcNS))
 
-	discoverers := []discovery.Discoverer{ //nolint:dupl // intentional parallel to check.go; commands may diverge
+	discoverers := []discovery.Discoverer{ //nolint:dupl // intentional parallel to now.go; commands may diverge
 		discovery.NewWebhookDiscoverer(clientset, webhookOpts...),
 		discovery.NewAPIServiceDiscoverer(aggClient, apiSvcOpts...),
 		discovery.NewAPIServerDiscoverer(apiServerTarget, discovery.WithProbeFn(restProbe(restCfg))),
@@ -274,7 +272,6 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	if spiffeSocket != "" {
 		discoverers = append(discoverers, discovery.NewSPIFFEDiscoverer(spiffeSocket))
 	}
-
 	discoverers = append(discoverers, discovery.CloudDiscoverers()...)
 
 	// Initialize tracing
@@ -303,52 +300,15 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	snap := orch.Run()
 	slog.Info("scan complete", "findings", len(snap.Findings))
 
-	// Federate with remote clusters if configured
-	clusterName, _ := cmd.Flags().GetString("cluster-name") //nolint:errcheck // flag registered above
-	if clusterName == "" {
-		clusterName = cfg.ClusterName
-	}
-	remoteFlags, _ := cmd.Flags().GetStringSlice("remote") //nolint:errcheck // flag registered above
-	remoteSources := parseRemoteFlags(remoteFlags, cfg.Remotes)
-	if len(remoteSources) > 0 {
-		if clusterName == "" {
-			clusterName = "local"
-		}
-		remoteSnaps := make(map[string]store.Snapshot)
-		for _, rs := range remoteSources {
-			remoteSnap, fetchErr := rs.Fetch(context.Background())
-			if fetchErr != nil {
-				slog.Warn("fetching remote snapshot", "cluster", rs.Name, "err", fetchErr)
-				continue
-			}
-			remoteSnaps[rs.Name] = remoteSnap
-			slog.Info("fetched remote snapshot", "cluster", rs.Name, "findings", len(remoteSnap.Findings))
-		}
-		snap = federation.Merge(clusterName, snap, remoteSnaps)
-	} else if clusterName != "" {
-		// Label local findings even without remotes
-		for i := range snap.Findings {
-			snap.Findings[i].Cluster = clusterName
-		}
+	// Apply deploy-window reclassification
+	if deployWindow > 0 {
+		applyDeployWindow(snap.Findings, deployWindow, snap.At)
 	}
 
-	// Save to history if configured
-	historyDB, _ := cmd.Flags().GetString("history-db") //nolint:errcheck // flag registered above
-	if historyDB != "" {
-		histStore, histErr := history.Open(historyDB)
-		if histErr != nil {
-			slog.Error("opening history database", "err", histErr)
-		} else {
-			if saveErr := histStore.Save(snap); saveErr != nil {
-				slog.Error("saving history snapshot", "err", saveErr)
-			}
-			histStore.Close() //nolint:errcheck // best-effort cleanup
-		}
-	}
+	// Calculate exit code with max-severity threshold
+	exitCode := checkExitCode(snap, maxSev)
 
-	// Display results
-	exitCode := monitor.ExitCode(snap)
-
+	// Output
 	outputFlag, _ := cmd.Flags().GetString("output") //nolint:errcheck // flag registered above
 	quiet, _ := cmd.Flags().GetBool("quiet")         //nolint:errcheck // flag registered above
 
@@ -362,18 +322,8 @@ func runNow(cmd *cobra.Command, _ []string) error {
 			if err := monitor.WriteJSON(os.Stdout, snap, exitCode); err != nil {
 				return fmt.Errorf("writing JSON output: %w", err)
 			}
-		case "table":
-			fmt.Print(monitor.PlainText(snap))
 		default:
-			if isInteractive() {
-				m := monitor.NewModel(snap, kubeCtx)
-				p := tea.NewProgram(m, tea.WithAltScreen())
-				if _, err := p.Run(); err != nil {
-					return fmt.Errorf("TUI error: %w", err)
-				}
-			} else {
-				fmt.Print(monitor.PlainText(snap))
-			}
+			fmt.Print(monitor.PlainText(snap))
 		}
 	}
 
@@ -384,78 +334,72 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
-// isInteractive returns true if stdout is a terminal.
-func isInteractive() bool {
-	fi, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-	return fi.Mode()&os.ModeCharDevice != 0
-}
-
-// apiServerFromHost extracts host:port from a REST config Host URL
-// for use as an API server probe target.
-func apiServerFromHost(host string) string {
-	if host == "" {
-		return ""
-	}
-	u, err := url.Parse(host)
-	if err != nil {
-		return ""
-	}
-	return u.Host
-}
-
-// restProbe returns a probe function that uses the REST config's transport
-// (proxy, exec auth, tunnels) to reach the API server and extract its TLS cert.
-func restProbe(cfg *rest.Config) func(string) probe.Result {
-	return func(_ string) probe.Result {
-		probeCfg := rest.CopyConfig(cfg)
-		probeCfg.Insecure = true
-		probeCfg.CAData = nil
-		probeCfg.CAFile = ""
-
-		transport, err := rest.TransportFor(probeCfg)
-		if err != nil {
-			return probe.Result{ProbeErr: fmt.Sprintf("building transport: %v", err)}
-		}
-
-		req, err := http.NewRequest(http.MethodGet, cfg.Host+"/version", http.NoBody)
-		if err != nil {
-			return probe.Result{ProbeErr: fmt.Sprintf("building request: %v", err)}
-		}
-
-		resp, err := (&http.Client{Transport: transport}).Do(req)
-		if err != nil {
-			return probe.Result{ProbeErr: fmt.Sprintf("connecting to apiserver: %v", err)}
-		}
-		defer resp.Body.Close() //nolint:errcheck // read-only probe, close error is unactionable
-
-		if resp.TLS == nil || len(resp.TLS.PeerCertificates) == 0 {
-			return probe.Result{ProbeErr: "no TLS certificates from apiserver"}
-		}
-
-		return probe.Result{
-			Cert:    resp.TLS.PeerCertificates[0],
-			Chain:   resp.TLS.PeerCertificates,
-			ProbeOK: true,
+// applyDeployWindow escalates findings expiring within the window to critical.
+func applyDeployWindow(findings []store.CertFinding, window time.Duration, now time.Time) {
+	cutoff := now.Add(window)
+	for i := range findings {
+		f := &findings[i]
+		if f.ProbeOK && !f.NotAfter.IsZero() && f.NotAfter.Before(cutoff) {
+			f.Severity = store.SeverityCritical
 		}
 	}
 }
 
-// parseRemoteFlags merges --remote flags (name=url format) with config file remotes.
-func parseRemoteFlags(flags []string, cfgRemotes []config.RemoteCluster) []*federation.RemoteSource {
-	var sources []*federation.RemoteSource
-	for _, r := range cfgRemotes {
-		sources = append(sources, &federation.RemoteSource{Name: r.Name, URL: r.URL})
+// checkExitCode returns an exit code based on findings and a severity threshold.
+// Findings at or above maxSev cause a non-zero exit.
+func checkExitCode(snap store.Snapshot, maxSev store.Severity) int {
+	if len(snap.Errors) > 0 {
+		return 3
 	}
-	for _, f := range flags {
-		parts := strings.SplitN(f, "=", 2)
-		if len(parts) != 2 {
-			slog.Warn("invalid --remote format, expected name=url", "value", f)
+	for i := range snap.Findings {
+		if !snap.Findings[i].ProbeOK {
+			return 3
+		}
+	}
+
+	code := 0
+	for i := range snap.Findings {
+		sev := snap.Findings[i].Severity
+		if !meetsThreshold(sev, maxSev) {
 			continue
 		}
-		sources = append(sources, &federation.RemoteSource{Name: parts[0], URL: parts[1]})
+		if sev == store.SeverityCritical {
+			return 2
+		}
+		if code < 1 {
+			code = 1
+		}
 	}
-	return sources
+	return code
+}
+
+// meetsThreshold returns true if the finding severity is at or above the threshold.
+func meetsThreshold(sev, threshold store.Severity) bool {
+	return sevRank(sev) >= sevRank(threshold)
+}
+
+func sevRank(s store.Severity) int {
+	switch s {
+	case store.SeverityCritical:
+		return 3
+	case store.SeverityWarn:
+		return 2
+	case store.SeverityInfo:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func parseSeverity(s string) (store.Severity, error) {
+	switch s {
+	case "info":
+		return store.SeverityInfo, nil
+	case "warn":
+		return store.SeverityWarn, nil
+	case "critical":
+		return store.SeverityCritical, nil
+	default:
+		return "", fmt.Errorf("invalid --max-severity %q: must be info, warn, or critical", s)
+	}
 }
