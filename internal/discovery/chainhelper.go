@@ -43,6 +43,12 @@ func applyProbeChainValidation(finding *store.CertFinding, pr *probe.Result, hos
 		finding.RawCert = pr.Chain[0]
 		if len(pr.Chain) > 1 {
 			finding.RawIssuer = pr.Chain[1]
+			// Store issuer chain (all certs above the leaf) for impact analysis
+			issuerChain := make([]string, 0, len(pr.Chain)-1)
+			for _, c := range pr.Chain[1:] {
+				issuerChain = append(issuerChain, c.Subject.String())
+			}
+			finding.IssuerChain = issuerChain
 		}
 		finding.OCSPStaple = pr.OCSPResponse
 	}
@@ -62,6 +68,14 @@ func applyPEMChainValidation(finding *store.CertFinding, pemData []byte, hostnam
 	result := chain.ValidateChain(certs, hostname, time.Now())
 	if len(result.Errors) > 0 {
 		finding.ChainErrors = result.Errors
+	}
+	// Store issuer chain for impact analysis
+	if len(certs) > 1 {
+		issuerChain := make([]string, 0, len(certs)-1)
+		for _, c := range certs[1:] {
+			issuerChain = append(issuerChain, c.Subject.String())
+		}
+		finding.IssuerChain = issuerChain
 	}
 	return certs[0]
 }
