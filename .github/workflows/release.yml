@@ -80,12 +80,14 @@ jobs:
             if [ "$GOOS" = "windows" ]; then
               binary="${binary}.exe"
               GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
-              cd staging && zip "../dist/${archive}.zip" "${binary}" && cd ..
+              cp "staging/${binary}" "staging/kubectl-trustwatch.exe"
+              cd staging && zip "../dist/${archive}.zip" "${binary}" "kubectl-trustwatch.exe" && cd ..
             else
               GOOS=$GOOS GOARCH=$GOARCH go build -ldflags="$LDFLAGS" -o "staging/${binary}" ./cmd/${PROJECT}/
-              tar -czf "dist/${archive}.tar.gz" -C staging "${binary}"
+              ln -sf "${binary}" "staging/kubectl-trustwatch"
+              tar -czf "dist/${archive}.tar.gz" -C staging "${binary}" "kubectl-trustwatch"
             fi
-            rm -f "staging/${binary}"
+            rm -f "staging/${binary}" "staging/kubectl-trustwatch" "staging/kubectl-trustwatch.exe"
           done
 
       - name: Generate checksums
@@ -256,6 +258,7 @@ jobs:
 
             def install
               bin.install "trustwatch"
+              bin.install_symlink "trustwatch" => "kubectl-trustwatch"
             end
 
             test do

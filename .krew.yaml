@@ -1,0 +1,53 @@
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: trustwatch
+spec:
+  version: v0.3.0
+  homepage: https://github.com/ppiankov/trustwatch
+  shortDescription: Kubernetes trust surface monitoring
+  description: |
+    Discovers expiring TLS certificates across admission webhooks, API
+    aggregation layers, service meshes, ingress, cert-manager, SPIFFE,
+    and annotated services. Probes endpoints, validates chains, audits
+    TLS posture, and enforces policies via TrustPolicy CRDs.
+  caveats: |
+    This plugin requires read access to cluster resources (secrets,
+    webhooks, apiservices, ingresses). See the project README for
+    the minimal ClusterRole.
+  platforms:
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: arm64
+      uri: https://github.com/ppiankov/trustwatch/releases/download/v0.3.0/trustwatch_0.3.0_darwin_arm64.tar.gz
+      sha256: PLACEHOLDER
+      bin: kubectl-trustwatch
+    - selector:
+        matchLabels:
+          os: darwin
+          arch: amd64
+      uri: https://github.com/ppiankov/trustwatch/releases/download/v0.3.0/trustwatch_0.3.0_darwin_amd64.tar.gz
+      sha256: PLACEHOLDER
+      bin: kubectl-trustwatch
+    - selector:
+        matchLabels:
+          os: linux
+          arch: arm64
+      uri: https://github.com/ppiankov/trustwatch/releases/download/v0.3.0/trustwatch_0.3.0_linux_arm64.tar.gz
+      sha256: PLACEHOLDER
+      bin: kubectl-trustwatch
+    - selector:
+        matchLabels:
+          os: linux
+          arch: amd64
+      uri: https://github.com/ppiankov/trustwatch/releases/download/v0.3.0/trustwatch_0.3.0_linux_amd64.tar.gz
+      sha256: PLACEHOLDER
+      bin: kubectl-trustwatch
+    - selector:
+        matchLabels:
+          os: windows
+          arch: amd64
+      uri: https://github.com/ppiankov/trustwatch/releases/download/v0.3.0/trustwatch_0.3.0_windows_amd64.zip
+      sha256: PLACEHOLDER
+      bin: kubectl-trustwatch.exe

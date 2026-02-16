@@ -15,6 +15,9 @@ brew install ppiankov/tap/trustwatch
 # Or install from source
 go install github.com/ppiankov/trustwatch/cmd/trustwatch@latest
 
+# kubectl plugin (also installed by Homebrew)
+kubectl trustwatch now --context prod
+
 # Scan current cluster
 trustwatch now --context prod
 
