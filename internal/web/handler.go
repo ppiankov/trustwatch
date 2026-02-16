@@ -74,25 +74,28 @@ func UIHandler(getSnapshot SnapshotFunc, opts ...func(*UIConfig)) http.HandlerFu
 				warnCount++
 			}
 			rows = append(rows, findingRow{
-				Severity:     string(f.Severity),
-				SevClass:     string(f.Severity),
-				Source:       string(f.Source),
-				Where:        formatWhere(f),
-				ExpiresIn:    formatExpiresIn(f.NotAfter, now),
-				NotAfter:     formatNotAfter(f.NotAfter),
-				Risk:         f.Notes,
-				ChainErrors:  strings.Join(f.ChainErrors, "; "),
-				Error:        f.ProbeErr,
-				Subject:      f.Subject,
-				Issuer:       f.Issuer,
-				Serial:       f.Serial,
-				DNSNames:     strings.Join(f.DNSNames, ", "),
-				KeyAlgorithm: f.KeyAlgorithm,
-				FindingType:  f.FindingType,
-				PolicyName:   f.PolicyName,
-				Name:         f.Name,
-				Namespace:    f.Namespace,
-				Cluster:      f.Cluster,
+				Severity:      string(f.Severity),
+				SevClass:      string(f.Severity),
+				Source:        string(f.Source),
+				Where:         formatWhere(f),
+				ExpiresIn:     formatExpiresIn(f.NotAfter, now),
+				NotAfter:      formatNotAfter(f.NotAfter),
+				Risk:          f.Notes,
+				ChainErrors:   strings.Join(f.ChainErrors, "; "),
+				PostureIssues: strings.Join(f.PostureIssues, "; "),
+				Error:         f.ProbeErr,
+				Subject:       f.Subject,
+				Issuer:        f.Issuer,
+				Serial:        f.Serial,
+				DNSNames:      strings.Join(f.DNSNames, ", "),
+				KeyAlgorithm:  f.KeyAlgorithm,
+				TLSVersion:    f.TLSVersion,
+				CipherSuite:   f.CipherSuite,
+				FindingType:   f.FindingType,
+				PolicyName:    f.PolicyName,
+				Name:          f.Name,
+				Namespace:     f.Namespace,
+				Cluster:       f.Cluster,
 			})
 		}
 
@@ -154,25 +157,28 @@ type pageData struct {
 }
 
 type findingRow struct {
-	Severity     string
-	SevClass     string
-	Source       string
-	Where        string
-	ExpiresIn    string
-	NotAfter     string
-	Risk         string
-	ChainErrors  string
-	Error        string
-	Subject      string
-	Issuer       string
-	Serial       string
-	DNSNames     string
-	KeyAlgorithm string
-	FindingType  string
-	PolicyName   string
-	Name         string
-	Namespace    string
-	Cluster      string
+	Severity      string
+	SevClass      string
+	Source        string
+	Where         string
+	ExpiresIn     string
+	NotAfter      string
+	Risk          string
+	ChainErrors   string
+	PostureIssues string
+	Error         string
+	Subject       string
+	Issuer        string
+	Serial        string
+	DNSNames      string
+	KeyAlgorithm  string
+	TLSVersion    string
+	CipherSuite   string
+	FindingType   string
+	PolicyName    string
+	Name          string
+	Namespace     string
+	Cluster       string
 }
 
 func sevOrder(s store.Severity) int {

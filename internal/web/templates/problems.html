@@ -75,6 +75,8 @@
       {{if .Serial}}<dt>Serial</dt><dd>{{.Serial}}</dd>{{end}}
       {{if .DNSNames}}<dt>SANs</dt><dd>{{.DNSNames}}</dd>{{end}}
       {{if .KeyAlgorithm}}<dt>Key</dt><dd>{{.KeyAlgorithm}}</dd>{{end}}
+      {{if .TLSVersion}}<dt>TLS</dt><dd>{{.TLSVersion}} · {{.CipherSuite}}</dd>{{end}}
+      {{if .PostureIssues}}<dt>Posture</dt><dd style="color:#ffa94d">{{.PostureIssues}}</dd>{{end}}
       {{if .FindingType}}<dt>Finding Type</dt><dd>{{.FindingType}}</dd>{{end}}
       {{if .PolicyName}}<dt>Policy</dt><dd>{{.PolicyName}}</dd>{{end}}
       {{if .Cluster}}<dt>Cluster</dt><dd>{{.Cluster}}</dd>{{end}}

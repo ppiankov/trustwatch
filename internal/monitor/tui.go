@@ -267,8 +267,14 @@ func (m *Model) detailView() string {
 	if f.Notes != "" {
 		lines = append(lines, fmt.Sprintf("Risk: %s", f.Notes))
 	}
+	if f.TLSVersion != "" {
+		lines = append(lines, fmt.Sprintf("TLS: %s · %s", f.TLSVersion, f.CipherSuite))
+	}
 	if len(f.ChainErrors) > 0 {
 		lines = append(lines, fmt.Sprintf("Chain: %s", warnStyle.Render(strings.Join(f.ChainErrors, "; "))))
+	}
+	if len(f.PostureIssues) > 0 {
+		lines = append(lines, fmt.Sprintf("Posture: %s", warnStyle.Render(strings.Join(f.PostureIssues, "; "))))
 	}
 	if f.ProbeErr != "" {
 		lines = append(lines, fmt.Sprintf("Error: %s", critStyle.Render(f.ProbeErr)))
@@ -309,7 +315,7 @@ func (m *Model) applyFilter() {
 		var filtered []store.CertFinding
 		for i := range m.allFindings {
 			f := &m.allFindings[i]
-			hay := strings.ToLower(f.Name + " " + f.Namespace + " " + string(f.Source) + " " + f.Target + " " + f.ProbeErr + " " + strings.Join(f.ChainErrors, " "))
+			hay := strings.ToLower(f.Name + " " + f.Namespace + " " + string(f.Source) + " " + f.Target + " " + f.ProbeErr + " " + strings.Join(f.ChainErrors, " ") + " " + strings.Join(f.PostureIssues, " "))
 			if strings.Contains(hay, query) {
 				filtered = append(filtered, m.allFindings[i])
 			}
