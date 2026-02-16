@@ -17,12 +17,19 @@ type DialContextFunc func(ctx context.Context, network, addr string) (net.Conn, 
 
 const defaultTimeout = 5 * time.Second
 
+// Retry defaults for transient connection errors.
+var (
+	retryMax   = 2
+	retryDelay = time.Second
+)
+
 // Result holds the outcome of a TLS probe.
 type Result struct {
 	Cert         *x509.Certificate
 	ProbeErr     string
 	Chain        []*x509.Certificate
 	OCSPResponse []byte
+	RetryCount   int
 	TLSVersion   uint16
 	CipherSuite  uint16
 	ProbeOK      bool
@@ -59,38 +66,54 @@ func ProbeWithDialer(raw string, dialFn DialContextFunc) Result {
 		return Result{ProbeOK: false, ProbeErr: fmt.Sprintf("unsupported scheme: %s (use https or tcp)", u.Scheme)}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
+	// Retry loop: only connection (dial) errors are retried.
+	// TLS handshake failures are definitive and returned immediately.
+	var lastDialErr error
+	for attempt := 0; attempt <= retryMax; attempt++ {
+		if attempt > 0 {
+			time.Sleep(retryDelay * time.Duration(1<<uint(attempt-1)))
+		}
 
-	rawConn, err := dialFn(ctx, "tcp", hostport)
-	if err != nil {
-		return Result{ProbeOK: false, ProbeErr: err.Error()}
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
+
+		rawConn, dialErr := dialFn(ctx, "tcp", hostport)
+		if dialErr != nil {
+			cancel()
+			lastDialErr = dialErr
+			continue
+		}
+
+		tlsConn := tls.Client(rawConn, &tls.Config{
+			ServerName:         sni,
+			InsecureSkipVerify: true, // we check expiry, not trust chain
+		})
+
+		if hsErr := tlsConn.HandshakeContext(ctx); hsErr != nil {
+			rawConn.Close() //nolint:errcheck // best-effort cleanup on handshake failure
+			cancel()
+			return Result{ProbeOK: false, ProbeErr: hsErr.Error(), RetryCount: attempt}
+		}
+
+		state := tlsConn.ConnectionState()
+		tlsConn.Close() //nolint:errcheck // read-only probe, close error is unactionable
+		cancel()
+
+		if len(state.PeerCertificates) == 0 {
+			return Result{ProbeOK: false, ProbeErr: "no peer certificates presented", RetryCount: attempt}
+		}
+
+		return Result{
+			Cert:         state.PeerCertificates[0],
+			Chain:        state.PeerCertificates,
+			OCSPResponse: state.OCSPResponse,
+			TLSVersion:   state.Version,
+			CipherSuite:  state.CipherSuite,
+			ProbeOK:      true,
+			RetryCount:   attempt,
+		}
 	}
 
-	tlsConn := tls.Client(rawConn, &tls.Config{
-		ServerName:         sni,
-		InsecureSkipVerify: true, // we check expiry, not trust chain
-	})
-
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		rawConn.Close() //nolint:errcheck // best-effort cleanup on handshake failure
-		return Result{ProbeOK: false, ProbeErr: err.Error()}
-	}
-	defer tlsConn.Close() //nolint:errcheck // read-only probe, close error is unactionable
-
-	state := tlsConn.ConnectionState()
-	if len(state.PeerCertificates) == 0 {
-		return Result{ProbeOK: false, ProbeErr: "no peer certificates presented"}
-	}
-
-	return Result{
-		Cert:         state.PeerCertificates[0],
-		Chain:        state.PeerCertificates,
-		OCSPResponse: state.OCSPResponse,
-		TLSVersion:   state.Version,
-		CipherSuite:  state.CipherSuite,
-		ProbeOK:      true,
-	}
+	return Result{ProbeOK: false, ProbeErr: lastDialErr.Error(), RetryCount: retryMax}
 }
 
 // FormatTarget builds a probe URL from host:port and optional SNI.
