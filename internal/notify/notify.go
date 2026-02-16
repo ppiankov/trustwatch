@@ -97,16 +97,49 @@ func (n *Notifier) Notify(prev, curr store.Snapshot) {
 	}
 	n.mu.Unlock()
 
-	if len(newFindings) == 0 {
+	resolvedKeys := n.computeResolved(prev, curr)
+
+	if len(newFindings) == 0 && len(resolvedKeys) == 0 {
 		return
 	}
 
+	n.dispatch(newFindings, resolvedKeys)
+}
+
+// computeResolved returns dedup keys for findings in prev (matching severity) absent from curr.
+func (n *Notifier) computeResolved(prev, curr store.Snapshot) []string {
+	currKeys := make(map[string]bool, len(curr.Findings))
+	for i := range curr.Findings {
+		currKeys[findingKey(&curr.Findings[i])] = true
+	}
+	var resolved []string
+	for i := range prev.Findings {
+		f := &prev.Findings[i]
+		if !n.severities[f.Severity] {
+			continue
+		}
+		if key := findingKey(f); !currKeys[key] {
+			resolved = append(resolved, key)
+		}
+	}
+	return resolved
+}
+
+// dispatch sends new findings and resolve events to all configured webhooks.
+func (n *Notifier) dispatch(newFindings []store.CertFinding, resolvedKeys []string) {
 	for _, wh := range n.webhooks {
-		switch wh.Type {
-		case "slack":
-			n.sendSlack(wh.URL, newFindings)
-		default:
-			n.sendGeneric(wh.URL, newFindings)
+		if len(newFindings) > 0 {
+			switch wh.Type {
+			case "slack":
+				n.sendSlack(wh.URL, newFindings)
+			case "pagerduty":
+				n.sendPagerDuty(wh, newFindings)
+			default:
+				n.sendGeneric(wh.URL, newFindings)
+			}
+		}
+		if wh.Type == "pagerduty" && len(resolvedKeys) > 0 {
+			n.resolvePagerDuty(wh, resolvedKeys)
 		}
 	}
 }
