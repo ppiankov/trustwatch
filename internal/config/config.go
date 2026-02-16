@@ -16,8 +16,9 @@ type ExternalTarget struct {
 
 // WebhookConfig describes a notification webhook endpoint.
 type WebhookConfig struct {
-	URL  string `yaml:"url"`
-	Type string `yaml:"type"` // "slack" or "generic"
+	URL        string `yaml:"url"`
+	Type       string `yaml:"type"`       // "slack", "generic", or "pagerduty"
+	RoutingKey string `yaml:"routingKey"` // PagerDuty Events API v2 routing key
 }
 
 // NotificationConfig controls how notifications are sent.
