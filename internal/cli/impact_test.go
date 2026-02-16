@@ -22,6 +22,7 @@ func TestImpactCommand_Flags(t *testing.T) {
 		"warn-before", "crit-before",
 		"tunnel", "tunnel-ns", "tunnel-image",
 		"check-revocation", "ct-domains", "ct-allowed-issuers",
+		"ignore-managed",
 		"spiffe-socket", "output",
 	}
 	for _, name := range flags {

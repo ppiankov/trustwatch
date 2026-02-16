@@ -168,6 +168,24 @@ func TestParseSeverity(t *testing.T) {
 	}
 }
 
+func TestFilterManagedExpiry(t *testing.T) {
+	findings := []store.CertFinding{
+		{Name: "managed", FindingType: "MANAGED_EXPIRY", Severity: store.SeverityInfo},
+		{Name: "normal", Severity: store.SeverityWarn},
+		{Name: "critical", Severity: store.SeverityCritical},
+	}
+	filtered := filterManagedExpiry(findings)
+	if len(filtered) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(filtered))
+	}
+	if filtered[0].Name != "normal" {
+		t.Errorf("expected first finding to be 'normal', got %q", filtered[0].Name)
+	}
+	if filtered[1].Name != "critical" {
+		t.Errorf("expected second finding to be 'critical', got %q", filtered[1].Name)
+	}
+}
+
 func TestCheckCommand_Registered(t *testing.T) {
 	found := false
 	for _, c := range rootCmd.Commands() {
@@ -188,6 +206,7 @@ func TestCheckCommand_Flags(t *testing.T) {
 		"warn-before", "crit-before",
 		"tunnel", "tunnel-ns", "tunnel-image",
 		"check-revocation", "ct-domains", "ct-allowed-issuers",
+		"ignore-managed",
 		"spiffe-socket", "output", "quiet",
 	}
 	for _, name := range flags {

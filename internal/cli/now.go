@@ -95,6 +95,7 @@ func init() {
 	nowCmd.Flags().StringSlice("ct-domains", nil, "Domains to monitor in CT logs")
 	nowCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
 	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
+	nowCmd.Flags().Bool("ignore-managed", false, "Hide cert-manager managed expiry findings")
 }
 
 func runNow(cmd *cobra.Command, _ []string) error {
@@ -317,6 +318,11 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	snap := orch.Run()
 	slog.Info("scan complete", "findings", len(snap.Findings))
 
+	ignoreManaged, _ := cmd.Flags().GetBool("ignore-managed") //nolint:errcheck // flag registered above
+	if ignoreManaged {
+		snap.Findings = filterManagedExpiry(snap.Findings)
+	}
+
 	// Federate with remote clusters if configured
 	clusterName, _ := cmd.Flags().GetString("cluster-name") //nolint:errcheck // flag registered above
 	if clusterName == "" {
@@ -455,6 +461,17 @@ func restProbe(cfg *rest.Config) func(string) probe.Result {
 			ProbeOK: true,
 		}
 	}
+}
+
+// filterManagedExpiry removes findings with FindingType=MANAGED_EXPIRY from the slice.
+func filterManagedExpiry(findings []store.CertFinding) []store.CertFinding {
+	filtered := make([]store.CertFinding, 0, len(findings))
+	for i := range findings {
+		if findings[i].FindingType != discovery.FindingManagedExpiry {
+			filtered = append(filtered, findings[i])
+		}
+	}
+	return filtered
 }
 
 // parseRemoteFlags merges --remote flags (name=url format) with config file remotes.

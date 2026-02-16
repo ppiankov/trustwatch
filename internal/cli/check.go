@@ -83,6 +83,8 @@ func init() {
 	checkCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: table)")
 	checkCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only")
 
+	checkCmd.Flags().Bool("ignore-managed", false, "Hide cert-manager managed expiry findings")
+
 	// CI-specific flags
 	checkCmd.Flags().String("policy", "", "Path to YAML policy file")
 	checkCmd.Flags().String("max-severity", "critical", "Fail threshold: info, warn, or critical")
@@ -313,6 +315,11 @@ func runCheck(cmd *cobra.Command, _ []string) error {
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 	snap := orch.Run()
 	slog.Info("scan complete", "findings", len(snap.Findings))
+
+	ignoreManaged, _ := cmd.Flags().GetBool("ignore-managed") //nolint:errcheck // flag registered above
+	if ignoreManaged {
+		snap.Findings = filterManagedExpiry(snap.Findings)
+	}
 
 	// Apply deploy-window reclassification
 	if deployWindow > 0 {

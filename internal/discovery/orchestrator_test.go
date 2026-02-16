@@ -385,6 +385,184 @@ func TestOrchestrator_ConcurrentExecution(t *testing.T) {
 	}
 }
 
+func TestApplyManagedExpiry_HealthyCert(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:    store.SourceCertManager,
+			Severity:  store.SeverityWarn,
+			Name:      "api-cert",
+			Namespace: "default",
+			NotAfter:  now.Add(24 * time.Hour),
+			ProbeOK:   true,
+		},
+	}
+	applyManagedExpiry(findings)
+
+	if findings[0].Severity != store.SeverityInfo {
+		t.Errorf("expected info, got %s", findings[0].Severity)
+	}
+	if findings[0].FindingType != FindingManagedExpiry {
+		t.Errorf("expected MANAGED_EXPIRY, got %s", findings[0].FindingType)
+	}
+}
+
+func TestApplyManagedExpiry_UnhealthyCert(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:    store.SourceCertManager,
+			Severity:  store.SeverityCritical,
+			Name:      "api-cert",
+			Namespace: "default",
+			NotAfter:  now.Add(24 * time.Hour),
+			ProbeOK:   true,
+		},
+		{
+			Source:      store.SourceCertManagerRenewal,
+			FindingType: FindingRequestPending,
+			Severity:    store.SeverityWarn,
+			Name:        "api-cert",
+			Namespace:   "default",
+			ProbeOK:     true,
+			Notes:       "Certificate not ready: Issuing",
+		},
+	}
+	applyManagedExpiry(findings)
+
+	if findings[0].Severity != store.SeverityCritical {
+		t.Errorf("unhealthy cert should keep severity, got %s", findings[0].Severity)
+	}
+	if findings[0].FindingType == FindingManagedExpiry {
+		t.Error("unhealthy cert should NOT get MANAGED_EXPIRY type")
+	}
+	if findings[0].Notes == "" {
+		t.Error("expected note about unhealthy renewal")
+	}
+}
+
+func TestApplyManagedExpiry_SerialCrossReference(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:    store.SourceCertManager,
+			Severity:  store.SeverityInfo,
+			Name:      "api-cert",
+			Namespace: "default",
+			Serial:    "AABB1122",
+			NotAfter:  now.Add(24 * time.Hour),
+			ProbeOK:   true,
+		},
+		{
+			Source:    store.SourceTLSSecret,
+			Severity:  store.SeverityWarn,
+			Name:      "api-tls",
+			Namespace: "default",
+			Serial:    "AABB1122",
+			NotAfter:  now.Add(24 * time.Hour),
+			ProbeOK:   true,
+		},
+	}
+	applyManagedExpiry(findings)
+
+	// Secret finding should be downgraded via serial match
+	if findings[1].Severity != store.SeverityInfo {
+		t.Errorf("serial-matched finding: expected info, got %s", findings[1].Severity)
+	}
+	if findings[1].FindingType != FindingManagedExpiry {
+		t.Errorf("serial-matched finding: expected MANAGED_EXPIRY, got %s", findings[1].FindingType)
+	}
+}
+
+func TestApplyManagedExpiry_UnmanagedCert(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:    store.SourceTLSSecret,
+			Severity:  store.SeverityWarn,
+			Name:      "manual-cert",
+			Namespace: "default",
+			Serial:    "CCDD3344",
+			NotAfter:  now.Add(24 * time.Hour),
+			ProbeOK:   true,
+		},
+	}
+	applyManagedExpiry(findings)
+
+	if findings[0].Severity != store.SeverityWarn {
+		t.Errorf("unmanaged cert should keep severity, got %s", findings[0].Severity)
+	}
+	if findings[0].FindingType == FindingManagedExpiry {
+		t.Error("unmanaged cert should NOT get MANAGED_EXPIRY type")
+	}
+}
+
+func TestApplyManagedExpiry_InfoSeverityUnchanged(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:    store.SourceCertManager,
+			Severity:  store.SeverityInfo,
+			Name:      "healthy-cert",
+			Namespace: "default",
+			NotAfter:  now.Add(365 * 24 * time.Hour),
+			ProbeOK:   true,
+		},
+	}
+	applyManagedExpiry(findings)
+
+	// Already info, no downgrade needed
+	if findings[0].FindingType == FindingManagedExpiry {
+		t.Error("info-severity cert should not get MANAGED_EXPIRY")
+	}
+}
+
+func TestApplyManagedExpiry_RenewalStalledDoesNotAffect(t *testing.T) {
+	now := fixedNow()
+	findings := []store.CertFinding{
+		{
+			Source:    store.SourceCertManager,
+			Severity:  store.SeverityWarn,
+			Name:      "api-cert",
+			Namespace: "default",
+			NotAfter:  now.Add(24 * time.Hour),
+			ProbeOK:   true,
+		},
+		{
+			Source:      store.SourceCertManagerRenewal,
+			FindingType: FindingRenewalStalled,
+			Severity:    store.SeverityWarn,
+			Name:        "api-cert-xyz",
+			Namespace:   "default",
+			ProbeOK:     true,
+		},
+	}
+	applyManagedExpiry(findings)
+
+	// RENEWAL_STALLED is about CertificateRequests, not Certificate Ready status
+	// The cert itself should still be treated as healthy
+	if findings[0].Severity != store.SeverityInfo {
+		t.Errorf("cert with stalled request (not pending cert): expected info, got %s", findings[0].Severity)
+	}
+}
+
+func TestApplyManagedExpiry_NoCertManagerFindings(t *testing.T) {
+	findings := []store.CertFinding{
+		{
+			Source:   store.SourceTLSSecret,
+			Severity: store.SeverityWarn,
+			Name:     "some-cert",
+			ProbeOK:  true,
+		},
+	}
+	applyManagedExpiry(findings)
+
+	// No cert-manager findings → no changes
+	if findings[0].Severity != store.SeverityWarn {
+		t.Errorf("expected no change, got %s", findings[0].Severity)
+	}
+}
+
 func TestOrchestrator_PreservesOriginalSeverityWhenHealthy(t *testing.T) {
 	now := fixedNow()
 	// Some discoverers set critical severity structurally (e.g. apiservice, issuer certs)

@@ -72,6 +72,7 @@ func init() {
 	impactCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
 	impactCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
 	impactCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: table)")
+	impactCmd.Flags().Bool("ignore-managed", false, "Hide cert-manager managed expiry findings")
 
 	// Query flags
 	impactCmd.Flags().String("issuer", "", "Query by issuer DN (substring match)")
@@ -301,6 +302,11 @@ func runImpact(cmd *cobra.Command, _ []string) error { //nolint:dupl // intentio
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 	snap := orch.Run()
 	slog.Info("scan complete", "findings", len(snap.Findings))
+
+	ignoreManaged, _ := cmd.Flags().GetBool("ignore-managed") //nolint:errcheck // flag registered above
+	if ignoreManaged {
+		snap.Findings = filterManagedExpiry(snap.Findings)
+	}
 
 	// Build impact graph and query
 	graph := impact.Build(snap.Findings)

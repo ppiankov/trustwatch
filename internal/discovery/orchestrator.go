@@ -9,11 +9,16 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"fmt"
+
 	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/store"
 )
+
+// FindingManagedExpiry indicates a cert expiring but managed by cert-manager with healthy renewal.
+const FindingManagedExpiry = "MANAGED_EXPIRY"
 
 // Orchestrator runs all discoverers concurrently and classifies findings.
 type Orchestrator struct {
@@ -126,6 +131,7 @@ func (o *Orchestrator) Run() store.Snapshot {
 	}
 
 	o.classifyFindings(allFindings, now)
+	applyManagedExpiry(allFindings)
 
 	// Run revocation checks if enabled
 	if o.crlCache != nil {
@@ -239,6 +245,72 @@ func (o *Orchestrator) classifyFindings(findings []store.CertFinding, now time.T
 		// Posture issues escalate info to warn (weak TLS config)
 		if len(f.PostureIssues) > 0 && f.Severity == store.SeverityInfo {
 			f.Severity = store.SeverityWarn
+		}
+	}
+}
+
+// applyManagedExpiry downgrades expiry findings for certs managed by healthy cert-manager renewals.
+func applyManagedExpiry(findings []store.CertFinding) {
+	// Index cert-manager managed certs by namespace/name and serial
+	managedByName := make(map[string]bool)
+	managedBySerial := make(map[string]string) // serial → namespace/name
+	for i := range findings {
+		f := &findings[i]
+		if f.Source != store.SourceCertManager || !f.ProbeOK {
+			continue
+		}
+		key := f.Namespace + "/" + f.Name
+		managedByName[key] = true
+		if f.Serial != "" {
+			managedBySerial[f.Serial] = key
+		}
+	}
+
+	if len(managedByName) == 0 {
+		return
+	}
+
+	// Index unhealthy certs from renewal findings (REQUEST_PENDING = Certificate Ready=False)
+	unhealthy := make(map[string]bool)
+	for i := range findings {
+		f := &findings[i]
+		if f.Source == store.SourceCertManagerRenewal && f.FindingType == FindingRequestPending {
+			unhealthy[f.Namespace+"/"+f.Name] = true
+		}
+	}
+
+	// Apply suppression
+	for i := range findings {
+		f := &findings[i]
+		if f.Severity != store.SeverityWarn && f.Severity != store.SeverityCritical {
+			continue
+		}
+
+		var managedKey string
+		if f.Source == store.SourceCertManager {
+			key := f.Namespace + "/" + f.Name
+			if managedByName[key] {
+				managedKey = key
+			}
+		} else if f.Serial != "" {
+			if key, ok := managedBySerial[f.Serial]; ok {
+				managedKey = key
+			}
+		}
+
+		if managedKey == "" {
+			continue
+		}
+
+		if unhealthy[managedKey] {
+			if f.Notes != "" {
+				f.Notes += "; "
+			}
+			f.Notes += fmt.Sprintf("managed by cert-manager Certificate %s, renewal UNHEALTHY", managedKey)
+		} else {
+			f.FindingType = FindingManagedExpiry
+			f.Severity = store.SeverityInfo
+			f.Notes = fmt.Sprintf("managed by cert-manager Certificate %s, renewal healthy", managedKey)
 		}
 	}
 }
