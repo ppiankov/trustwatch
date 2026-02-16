@@ -282,6 +282,9 @@ func (m *Model) detailView() string {
 	if f.ProbeErr != "" {
 		lines = append(lines, fmt.Sprintf("Error: %s", critStyle.Render(f.ProbeErr)))
 	}
+	if f.Remediation != "" {
+		lines = append(lines, fmt.Sprintf("Fix: %s", f.Remediation))
+	}
 
 	if len(lines) == 0 {
 		return detailStyle.Render(dimStyle.Render("(no details)"))

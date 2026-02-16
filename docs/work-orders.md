@@ -1115,3 +1115,120 @@ A Linkerd identity issuer Certificate with `duration: 48h` rotates the intermedi
 - `internal/discovery/orchestrator.go` — wire rotation analysis after cert-manager discovery
 
 **Verification**: `make test` passes with -race. A Linkerd identity issuer Certificate with `duration: 48h` → `EXCESSIVE_ROTATION` finding with warn severity. Same cert with `duration: 8760h` (1 year) → no finding. A workload cert with `duration: 1h` → no finding (short-lived leaf is expected).
+
+---
+
+## Phase 4: Operational Readiness, Alerting & Integrations, Advanced Analysis
+
+### WO-T46: Remediation playbooks
+
+**Goal**: Add actionable fix suggestions to each finding type. When trustwatch reports a problem, show the user exactly what to do about it.
+
+**Details**:
+- Create `internal/remediation/playbook.go` — map FindingType + Source → remediation steps
+- Each playbook entry: summary (one line), steps ([]string), docs URL (optional)
+- Cover all existing finding types: expiry (warn/critical), MANAGED_EXPIRY, RENEWAL_STALLED, CHALLENGE_FAILED, REQUEST_PENDING, EXCESSIVE_ROTATION, CT_UNKNOWN_CERT, CT_ROGUE_ISSUER, POLICY_VIOLATION, BROKEN_CHAIN, WEAK_TLS_VERSION, WEAK_CIPHER, CERT_REVOKED
+- Add `Remediation` field to CertFinding (string, populated in orchestrator post-processing)
+- Display in TUI detail panel, web UI detail panel, and JSON output
+- Wire into orchestrator as final post-processing step (after policy evaluation)
+
+**Files**:
+- `internal/remediation/playbook.go` — new: playbook lookup
+- `internal/remediation/playbook_test.go` — new: tests
+- `internal/store/store.go` — add Remediation field
+- `internal/discovery/orchestrator.go` — wire playbook step
+- `internal/monitor/tui.go` — show remediation in detail view
+- `internal/web/handler.go` — include in finding row
+
+**Verification**: `make check` passes. Every non-info finding type has a non-empty remediation string.
+
+### WO-T47: PagerDuty integration
+
+**Goal**: Send PagerDuty incidents for critical findings, with automatic resolve when findings clear.
+
+**Details**:
+- Add PagerDuty Events API v2 support to `internal/notify/`
+- New notifier type: `pagerduty` with routing key config
+- Trigger events for critical findings, resolve when finding disappears from next scan
+- Track incident dedup keys (source + namespace + name) across scans
+- Respect existing cooldown and severity filtering
+
+**Files**:
+- `internal/notify/pagerduty.go` — new
+- `internal/notify/pagerduty_test.go` — new
+- `internal/notify/notify.go` — add PagerDuty dispatch
+- `internal/config/config.go` — add RoutingKey to webhook config
+
+**Verification**: `make check` passes. PagerDuty notifier sends trigger and resolve events via httptest mock.
+
+### WO-T48: Compliance snapshot report
+
+**Goal**: Generate a standalone HTML report from a scan snapshot, suitable for compliance audits and email distribution.
+
+**Details**:
+- `trustwatch report` command — runs scan, generates self-contained HTML file
+- HTML includes: scan timestamp, cluster name, finding summary table, severity counts, per-finding details
+- All CSS inline (no external dependencies), printable
+- Optional: `--output-file report.html` (default: stdout)
+- Uses `html/template` with embedded template
+
+**Files**:
+- `internal/cli/report.go` — new: Cobra command
+- `internal/report/html.go` — new: HTML template + renderer
+- `internal/report/html_test.go` — new: tests
+
+**Verification**: `make check` passes. Generated HTML is valid, contains finding data.
+
+### WO-T49: Certificate drift detection
+
+**Goal**: Compare consecutive snapshots and flag unexpected certificate changes — new certs appearing, certs disappearing, serial number changes, issuer changes.
+
+**Details**:
+- Uses existing history store (SQLite) to compare current scan vs previous
+- Drift types: `CERT_NEW` (info), `CERT_GONE` (warn), `SERIAL_CHANGED` (info), `ISSUER_CHANGED` (warn)
+- Match findings across snapshots by (source, namespace, name) composite key
+- Wire into orchestrator as optional post-processing (requires history store)
+- `--detect-drift` flag on `now` and `serve` commands (requires `--history-db`)
+
+**Files**:
+- `internal/drift/detector.go` — new: snapshot comparison logic
+- `internal/drift/detector_test.go` — new: tests
+- `internal/discovery/orchestrator.go` — add WithDriftDetection option
+- `internal/cli/now.go` + `serve.go` — add `--detect-drift` flag
+
+**Verification**: `make check` passes. Two scans with changed serial → SERIAL_CHANGED finding.
+
+### WO-T50: Probe retry with exponential backoff
+
+**Goal**: Retry failed TLS probes with backoff to handle transient network issues.
+
+**Details**:
+- Add retry logic to `internal/probe/tls.go` Probe function
+- Default: 2 retries with exponential backoff (1s, 2s)
+- Configurable via probe options
+- Only retry on connection errors, not TLS handshake failures (those are definitive)
+- Track retry count in ProbeResult for observability
+
+**Files**:
+- `internal/probe/tls.go` — add retry wrapper
+- `internal/probe/tls_test.go` — test retry on transient failure
+
+**Verification**: `make check` passes. Probe retries on connection refused, not on TLS error.
+
+### WO-T51: Grafana annotation push
+
+**Goal**: Push scan events as Grafana annotations so certificate issues appear on dashboards with context.
+
+**Details**:
+- New notifier type: `grafana` — POST to Grafana Annotations API
+- Annotation includes: severity summary, finding count, tags
+- Only fires when findings change (not on every scan cycle)
+- Config: Grafana URL + API key + optional dashboard ID
+
+**Files**:
+- `internal/notify/grafana.go` — new
+- `internal/notify/grafana_test.go` — new
+- `internal/notify/notify.go` — add Grafana dispatch
+- `internal/config/config.go` — add APIKey to webhook config
+
+**Verification**: `make check` passes. Grafana notifier sends annotation via httptest mock.
