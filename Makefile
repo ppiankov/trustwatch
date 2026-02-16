@@ -67,10 +67,15 @@ clean: ## Remove build artifacts
 	rm -f coverage.out coverage.html
 	@echo "Clean complete"
 
+kubectl-plugin: build ## Build kubectl-trustwatch plugin
+	@ln -sf $(BINARY_NAME) $(BUILD_DIR)/kubectl-trustwatch
+	@echo "kubectl plugin: $(BUILD_DIR)/kubectl-trustwatch"
+
 install: build ## Install binary to GOPATH/bin
 	@echo "Installing to $(GOPATH)/bin..."
 	cp $(BUILD_DIR)/$(BINARY_NAME) $(GOPATH)/bin/
-	@echo "Installed: $(GOPATH)/bin/$(BINARY_NAME)"
+	ln -sf $(BINARY_NAME) $(GOPATH)/bin/kubectl-trustwatch
+	@echo "Installed: $(GOPATH)/bin/$(BINARY_NAME) + kubectl-trustwatch"
 
 deps: ## Download and tidy dependencies
 	@echo "Downloading dependencies..."
