@@ -97,6 +97,7 @@ func UIHandler(getSnapshot SnapshotFunc, opts ...func(*UIConfig)) http.HandlerFu
 				Name:             f.Name,
 				Namespace:        f.Namespace,
 				Cluster:          f.Cluster,
+				Remediation:      f.Remediation,
 			})
 		}
 
@@ -181,6 +182,7 @@ type findingRow struct {
 	Name             string
 	Namespace        string
 	Cluster          string
+	Remediation      string
 }
 
 func sevOrder(s store.Severity) int {

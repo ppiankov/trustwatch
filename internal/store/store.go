@@ -63,6 +63,7 @@ type CertFinding struct {
 	PolicyName         string            `json:"policyName,omitempty"`
 	KeyAlgorithm       string            `json:"keyAlgorithm,omitempty"`
 	Subject            string            `json:"subject,omitempty"`
+	Remediation        string            `json:"remediation,omitempty"`
 	TLSVersion         string            `json:"tlsVersion,omitempty"`
 	ChainErrors        []string          `json:"chainErrors,omitempty"`
 	DNSNames           []string          `json:"dnsNames,omitempty"`

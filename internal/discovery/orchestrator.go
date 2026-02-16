@@ -13,6 +13,7 @@ import (
 
 	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/policy"
+	"github.com/ppiankov/trustwatch/internal/remediation"
 	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/rotation"
 	"github.com/ppiankov/trustwatch/internal/store"
@@ -194,6 +195,9 @@ func (o *Orchestrator) Run() store.Snapshot {
 		violations := engine.Evaluate(allFindings)
 		allFindings = append(allFindings, violations...)
 	}
+
+	// Populate remediation suggestions
+	remediation.Apply(allFindings)
 
 	snap := store.Snapshot{
 		At:       now,
