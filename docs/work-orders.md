@@ -1035,3 +1035,83 @@ Suggested shipping order:
 - **3c** (ship together): WO-T42 (Impact analysis) + WO-T43 (CT monitoring)
 
 No dependencies between Phase 3 WOs — all can be parallelized if needed.
+
+---
+
+### WO-T44: Rotation-aware expiry suppression
+
+**Goal**: Don't warn about certificate expiry when cert-manager is actively and healthily managing the renewal. Currently trustwatch sees a cert expiring in 48h and raises critical — even if cert-manager is configured to rotate it every 48h and renewal is working perfectly.
+
+**The problem**:
+A cert-manager Certificate with `duration: 48h, renewBefore: 24h` means the cert is always within trustwatch's default warning threshold (30d). trustwatch raises warn/critical on every scan, creating permanent noise for a cert that is being managed correctly.
+
+**Details**:
+- During discovery, trustwatch already reads cert-manager Certificate CRs (WO-T25) and renewal health (WO-T33)
+- Cross-reference: if a cert's expiry is within the warn/crit threshold BUT a cert-manager Certificate CR manages it AND the Certificate is Ready=True → suppress the expiry finding or downgrade to info
+- The logic: "this cert expires soon, but cert-manager knows about it and renewal is healthy — not a problem"
+- If the Certificate is NOT Ready, or renewal is stalled/failed → keep the original severity (or escalate)
+
+**Steps**:
+1. In orchestrator post-processing: build a map of cert-manager-managed certs (by namespace/name or by serial/issuer match)
+2. For each expiry finding, check if a healthy cert-manager Certificate CR covers it
+3. If covered and healthy: set `FindingType` to `MANAGED_EXPIRY`, downgrade severity to info, add note "managed by cert-manager Certificate <name>, renewal healthy"
+4. If covered but unhealthy: keep severity, add note "managed by cert-manager Certificate <name>, renewal UNHEALTHY"
+5. Add `--ignore-managed` flag to suppress managed expiry findings entirely (default: show as info)
+
+**New finding types**:
+- `MANAGED_EXPIRY` — cert expiring but renewal is healthy (severity: info)
+
+**Files**:
+- `internal/discovery/orchestrator.go` — post-processing step: cross-reference expiry findings with cert-manager state
+- `internal/discovery/orchestrator_test.go` — tests: managed cert suppressed, unmanaged cert kept, unhealthy managed cert escalated
+- `internal/store/store.go` — add `MANAGED_EXPIRY` finding type constant
+
+**Verification**: `make test` passes with -race. A cert expiring in 24h managed by a healthy cert-manager Certificate → severity info with `MANAGED_EXPIRY` type. Same cert with stalled renewal → severity critical preserved.
+
+---
+
+### WO-T45: Excessive rotation frequency detection
+
+**Goal**: Flag certificates with rotation frequencies that increase operational risk without proportional security gain. Daily rotation of an intermediate CA is churn, not security.
+
+**The problem**:
+A Linkerd identity issuer Certificate with `duration: 48h` rotates the intermediate CA daily. This:
+- Increases fragility (if cert-manager hiccups, mesh dies in 48h)
+- Creates constant Secret churn and audit log noise
+- Provides marginal security improvement over 6-12 month rotation for most threat models
+- Violates the principle: "if extraordinary effort is needed to maintain safety, the architecture is broken"
+
+**Details**:
+- Read cert-manager Certificate CR `spec.duration` and `spec.renewBefore`
+- Compare against recommended thresholds based on certificate role:
+  - Trust anchor / root CA: 5-10 years is normal, <1 year is excessive rotation
+  - Intermediate CA / identity issuer: 6-12 months is normal, <7 days is excessive
+  - Leaf / workload cert: hours-to-days is normal, no floor
+- Detect role from context: Linkerd trust anchor (source=mesh.linkerd, name contains "trust-anchor"), Linkerd identity issuer (source=mesh.linkerd, name contains "identity"), general CA (isCA=true in cert), leaf (everything else)
+- The thresholds are opinionated defaults — overridable via TrustPolicy CRD rules
+
+**New finding types**:
+- `EXCESSIVE_ROTATION` — rotation frequency higher than recommended for cert role (severity: warn)
+
+**Recommended rotation thresholds** (defaults, overridable via policy):
+| Certificate role | Min recommended duration | Rationale |
+|-----------------|------------------------|-----------|
+| Trust anchor / root CA | 1 year | Roots are trust distribution points, not attack surfaces |
+| Intermediate CA / issuer | 30 days | Balance between blast radius and operational stability |
+| Leaf / workload | no minimum | Short-lived by design |
+
+**Steps**:
+1. Create `internal/rotation/analyzer.go` — analyze Certificate CR duration against role-based thresholds
+2. Detect certificate role from source kind, name patterns, and isCA flag
+3. Compare `spec.duration` against minimum threshold for detected role
+4. Generate `EXCESSIVE_ROTATION` finding with notes explaining the risk and recommended duration
+5. Wire into orchestrator as a post-processing step after cert-manager discovery
+6. Make thresholds configurable via TrustPolicy CRD `rotationPolicy` rules (future, after WO-T34)
+
+**Files**:
+- `internal/rotation/analyzer.go` — new file: rotation frequency analysis
+- `internal/rotation/analyzer_test.go` — new file: tests for role detection and threshold comparison
+- `internal/store/store.go` — add `EXCESSIVE_ROTATION` finding type constant
+- `internal/discovery/orchestrator.go` — wire rotation analysis after cert-manager discovery
+
+**Verification**: `make test` passes with -race. A Linkerd identity issuer Certificate with `duration: 48h` → `EXCESSIVE_ROTATION` finding with warn severity. Same cert with `duration: 8760h` (1 year) → no finding. A workload cert with `duration: 1h` → no finding (short-lived leaf is expected).
