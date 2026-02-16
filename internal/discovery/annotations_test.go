@@ -19,7 +19,7 @@ import (
 
 const testProbeErrConnRefused = "connection refused"
 
-func mockProbeResult(result probe.Result) func(string) probe.Result {
+func mockProbeResult(result probe.Result) func(string) probe.Result { //nolint:gocritic // value copy intentional for test closure capture
 	return func(_ string) probe.Result { return result }
 }
 

@@ -3,19 +3,22 @@ package discovery
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/ppiankov/trustwatch/internal/policy"
+	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
 // Orchestrator runs all discoverers concurrently and classifies findings.
 type Orchestrator struct {
-	nowFn       func() time.Time
 	tracer      trace.Tracer
+	nowFn       func() time.Time
+	crlCache    *revocation.CRLCache
 	policies    []policy.TrustPolicy
 	discoverers []Discoverer
 	warnBefore  time.Duration
@@ -29,6 +32,13 @@ type OrchestratorOption func(*Orchestrator)
 func WithTracer(t trace.Tracer) OrchestratorOption {
 	return func(o *Orchestrator) {
 		o.tracer = t
+	}
+}
+
+// WithCheckRevocation enables OCSP/CRL revocation checking using the given cache.
+func WithCheckRevocation(cache *revocation.CRLCache) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.crlCache = cache
 	}
 }
 
@@ -103,6 +113,32 @@ func (o *Orchestrator) Run() store.Snapshot {
 	}
 
 	o.classifyFindings(allFindings, now)
+
+	// Run revocation checks if enabled
+	if o.crlCache != nil {
+		for i := range allFindings {
+			f := &allFindings[i]
+			if !f.ProbeOK || f.RawCert == nil {
+				continue
+			}
+			if issues := revocation.Check(f.RawCert, f.RawIssuer, f.OCSPStaple, o.crlCache); len(issues) > 0 {
+				f.RevocationIssues = issues
+				for _, issue := range issues {
+					if strings.Contains(issue, "CERT_REVOKED") {
+						f.Severity = store.SeverityCritical
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// Clear transient fields before returning
+	for i := range allFindings {
+		allFindings[i].RawCert = nil
+		allFindings[i].RawIssuer = nil
+		allFindings[i].OCSPStaple = nil
+	}
 
 	// Evaluate policy rules
 	if len(o.policies) > 0 {

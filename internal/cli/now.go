@@ -26,6 +26,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/monitor"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/probe"
+	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/store"
 	"github.com/ppiankov/trustwatch/internal/telemetry"
 	"github.com/ppiankov/trustwatch/internal/tunnel"
@@ -89,6 +90,7 @@ func init() {
 	nowCmd.Flags().String("cluster-name", "", "Name for this cluster in federated views")
 	nowCmd.Flags().StringSlice("remote", nil, "Remote trustwatch URLs (name=url format)")
 	nowCmd.Flags().StringP("output", "o", "", "Output format: json, table (default: auto-detect TTY)")
+	nowCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
 	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
 }
 
@@ -292,6 +294,10 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 	if tracer != nil {
 		orchOpts = append(orchOpts, discovery.WithTracer(tracer))
+	}
+	checkRevocation, _ := cmd.Flags().GetBool("check-revocation") //nolint:errcheck // flag registered above
+	if checkRevocation {
+		orchOpts = append(orchOpts, discovery.WithCheckRevocation(revocation.NewCRLCache()))
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 	snap := orch.Run()

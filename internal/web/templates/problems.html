@@ -77,6 +77,7 @@
       {{if .KeyAlgorithm}}<dt>Key</dt><dd>{{.KeyAlgorithm}}</dd>{{end}}
       {{if .TLSVersion}}<dt>TLS</dt><dd>{{.TLSVersion}} · {{.CipherSuite}}</dd>{{end}}
       {{if .PostureIssues}}<dt>Posture</dt><dd style="color:#ffa94d">{{.PostureIssues}}</dd>{{end}}
+      {{if .RevocationIssues}}<dt>Revocation</dt><dd style="color:#ff6b6b">{{.RevocationIssues}}</dd>{{end}}
       {{if .FindingType}}<dt>Finding Type</dt><dd>{{.FindingType}}</dd>{{end}}
       {{if .PolicyName}}<dt>Policy</dt><dd>{{.PolicyName}}</dd>{{end}}
       {{if .Cluster}}<dt>Cluster</dt><dd>{{.Cluster}}</dd>{{end}}
