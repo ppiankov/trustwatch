@@ -16,9 +16,11 @@ type ExternalTarget struct {
 
 // WebhookConfig describes a notification webhook endpoint.
 type WebhookConfig struct {
-	URL        string `yaml:"url"`
-	Type       string `yaml:"type"`       // "slack", "generic", or "pagerduty"
-	RoutingKey string `yaml:"routingKey"` // PagerDuty Events API v2 routing key
+	URL          string `yaml:"url"`
+	Type         string `yaml:"type"`         // "slack", "generic", "pagerduty", or "grafana"
+	RoutingKey   string `yaml:"routingKey"`   // PagerDuty Events API v2 routing key
+	APIKey       string `yaml:"apiKey"`       // Grafana API key (Bearer token)
+	DashboardUID string `yaml:"dashboardUID"` // Grafana dashboard UID (optional)
 }
 
 // NotificationConfig controls how notifications are sent.

@@ -29,7 +29,7 @@ type pdPayload struct {
 	Severity  string    `json:"severity"`
 }
 
-func (n *Notifier) sendPagerDuty(wh config.WebhookConfig, findings []store.CertFinding) {
+func (n *Notifier) sendPagerDuty(wh *config.WebhookConfig, findings []store.CertFinding) {
 	for i := range findings {
 		f := &findings[i]
 		event := pdEvent{
@@ -52,7 +52,7 @@ func (n *Notifier) sendPagerDuty(wh config.WebhookConfig, findings []store.CertF
 	}
 }
 
-func (n *Notifier) resolvePagerDuty(wh config.WebhookConfig, keys []string) {
+func (n *Notifier) resolvePagerDuty(wh *config.WebhookConfig, keys []string) {
 	for _, key := range keys {
 		event := pdEvent{
 			RoutingKey:  wh.RoutingKey,
