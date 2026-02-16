@@ -56,6 +56,10 @@ linters:
           - goconst
           - gocyclo
         path: internal/cli/
+      - linters:
+          - revive
+        path: internal/metrics/
+        text: 'var-naming.*conflict with Go standard library'
     paths:
       - vendor
       - bin
