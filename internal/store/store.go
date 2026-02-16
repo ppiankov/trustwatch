@@ -65,6 +65,7 @@ type CertFinding struct {
 	TLSVersion         string            `json:"tlsVersion,omitempty"`
 	ChainErrors        []string          `json:"chainErrors,omitempty"`
 	DNSNames           []string          `json:"dnsNames,omitempty"`
+	IssuerChain        []string          `json:"issuerChain,omitempty"`
 	RevocationIssues   []string          `json:"revocationIssues,omitempty"`
 	PostureIssues      []string          `json:"postureIssues,omitempty"`
 	OCSPStaple         []byte            `json:"-"`
