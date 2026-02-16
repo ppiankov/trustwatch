@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/ppiankov/trustwatch/internal/ct"
+	"github.com/ppiankov/trustwatch/internal/drift"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/remediation"
 	"github.com/ppiankov/trustwatch/internal/revocation"
@@ -28,6 +29,7 @@ type Orchestrator struct {
 	nowFn            func() time.Time
 	crlCache         *revocation.CRLCache
 	ctClient         *ct.Client
+	prevSnap         *store.Snapshot
 	policies         []policy.TrustPolicy
 	discoverers      []Discoverer
 	ctDomains        []string
@@ -59,6 +61,13 @@ func WithCTCheck(domains, allowedIssuers []string, client *ct.Client) Orchestrat
 		o.ctDomains = domains
 		o.ctAllowedIssuers = allowedIssuers
 		o.ctClient = client
+	}
+}
+
+// WithDriftDetection enables certificate drift detection by comparing against a previous snapshot.
+func WithDriftDetection(prev *store.Snapshot) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.prevSnap = prev
 	}
 }
 
@@ -198,6 +207,12 @@ func (o *Orchestrator) Run() store.Snapshot {
 
 	// Populate remediation suggestions
 	remediation.Apply(allFindings)
+
+	// Detect certificate drift if previous snapshot is available
+	if o.prevSnap != nil {
+		driftFindings := drift.Detect(o.prevSnap.Findings, allFindings)
+		allFindings = append(allFindings, driftFindings...)
+	}
 
 	snap := store.Snapshot{
 		At:       now,

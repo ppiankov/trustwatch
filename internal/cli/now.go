@@ -96,6 +96,7 @@ func init() {
 	nowCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
 	nowCmd.Flags().BoolP("quiet", "q", false, "Suppress output, exit code only (for CI gates)")
 	nowCmd.Flags().Bool("ignore-managed", false, "Hide cert-manager managed expiry findings")
+	nowCmd.Flags().Bool("detect-drift", false, "Detect certificate changes vs previous scan (requires --history-db)")
 }
 
 func runNow(cmd *cobra.Command, _ []string) error {
@@ -290,6 +291,17 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		defer tracerShutdown(context.Background()) //nolint:errcheck // best-effort flush
 	}
 
+	// Open history store early so drift detection can load previous snapshot
+	historyDB, _ := cmd.Flags().GetString("history-db") //nolint:errcheck // flag registered above
+	var histStore *history.Store
+	if historyDB != "" {
+		var histErr error
+		histStore, histErr = history.Open(historyDB)
+		if histErr != nil {
+			slog.Error("opening history database", "err", histErr)
+		}
+	}
+
 	// Run discovery
 	slog.Info("scanning discovery sources", "count", len(discoverers))
 	var orchOpts []discovery.OrchestratorOption
@@ -313,6 +325,15 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 	if len(ctDomains) > 0 {
 		orchOpts = append(orchOpts, discovery.WithCTCheck(ctDomains, ctIssuers, ct.NewClient()))
+	}
+	detectDrift, _ := cmd.Flags().GetBool("detect-drift") //nolint:errcheck // flag registered above
+	if detectDrift && histStore != nil {
+		prevSnap, prevErr := histStore.GetLatest()
+		if prevErr != nil {
+			slog.Warn("loading previous snapshot for drift detection", "err", prevErr)
+		} else if prevSnap != nil {
+			orchOpts = append(orchOpts, discovery.WithDriftDetection(prevSnap))
+		}
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 	snap := orch.Run()
@@ -353,17 +374,11 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Save to history if configured
-	historyDB, _ := cmd.Flags().GetString("history-db") //nolint:errcheck // flag registered above
-	if historyDB != "" {
-		histStore, histErr := history.Open(historyDB)
-		if histErr != nil {
-			slog.Error("opening history database", "err", histErr)
-		} else {
-			if saveErr := histStore.Save(snap); saveErr != nil {
-				slog.Error("saving history snapshot", "err", saveErr)
-			}
-			histStore.Close() //nolint:errcheck // best-effort cleanup
+	if histStore != nil {
+		if saveErr := histStore.Save(snap); saveErr != nil {
+			slog.Error("saving history snapshot", "err", saveErr)
 		}
+		histStore.Close() //nolint:errcheck // best-effort cleanup
 	}
 
 	// Display results

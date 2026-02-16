@@ -92,7 +92,7 @@ func (s *Store) Save(snap store.Snapshot) error {
 	}
 
 	stmt, err := tx.Prepare(
-		"INSERT INTO findings (snapshot_id, source, namespace, name, severity, not_after, probe_ok, finding_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		"INSERT INTO findings (snapshot_id, source, namespace, name, severity, not_after, probe_ok, finding_type, serial, issuer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 	)
 	if err != nil {
 		return fmt.Errorf("preparing finding insert: %w", err)
@@ -101,7 +101,7 @@ func (s *Store) Save(snap store.Snapshot) error {
 
 	for i := range snap.Findings {
 		f := &snap.Findings[i]
-		_, err := stmt.Exec(snapID, f.Source, f.Namespace, f.Name, f.Severity, f.NotAfter, f.ProbeOK, f.FindingType)
+		_, err := stmt.Exec(snapID, f.Source, f.Namespace, f.Name, f.Severity, f.NotAfter, f.ProbeOK, f.FindingType, f.Serial, f.Issuer)
 		if err != nil {
 			return fmt.Errorf("inserting finding: %w", err)
 		}
@@ -165,4 +165,36 @@ func (s *Store) Trend(name, ns, source string, limit int) ([]TrendPoint, error) 
 		points = append(points, p)
 	}
 	return points, rows.Err()
+}
+
+// GetLatest returns the most recent snapshot with its findings, or nil if no snapshots exist.
+func (s *Store) GetLatest() (*store.Snapshot, error) {
+	var snapID int64
+	var at time.Time
+	err := s.db.QueryRow("SELECT id, at FROM snapshots ORDER BY at DESC LIMIT 1").Scan(&snapID, &at)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("querying latest snapshot: %w", err)
+	}
+
+	rows, err := s.db.Query(
+		"SELECT source, namespace, name, severity, not_after, probe_ok, finding_type, serial, issuer FROM findings WHERE snapshot_id = ?",
+		snapID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("querying findings: %w", err)
+	}
+	defer rows.Close() //nolint:errcheck // read-only query
+
+	snap := &store.Snapshot{At: at}
+	for rows.Next() {
+		var f store.CertFinding
+		if err := rows.Scan(&f.Source, &f.Namespace, &f.Name, &f.Severity, &f.NotAfter, &f.ProbeOK, &f.FindingType, &f.Serial, &f.Issuer); err != nil {
+			return nil, fmt.Errorf("scanning finding: %w", err)
+		}
+		snap.Findings = append(snap.Findings, f)
+	}
+	return snap, rows.Err()
 }
