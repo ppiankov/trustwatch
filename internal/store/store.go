@@ -1,7 +1,10 @@
 // Package store defines the data model for trustwatch findings and snapshots.
 package store
 
-import "time"
+import (
+	"crypto/x509"
+	"time"
+)
 
 // Severity classifies how urgent a finding is.
 type Severity string
@@ -39,32 +42,36 @@ const (
 
 // CertFinding represents a single trust surface observation.
 type CertFinding struct {
-	NotAfter           time.Time  `json:"notAfter"`
-	Subject            string     `json:"subject,omitempty"`
-	TLSVersion         string     `json:"tlsVersion,omitempty"`
-	ProbeErr           string     `json:"probeError,omitempty"`
-	Name               string     `json:"name,omitempty"`
-	Namespace          string     `json:"namespace,omitempty"`
-	Cluster            string     `json:"cluster,omitempty"`
-	Source             SourceKind `json:"source"`
-	Target             string     `json:"target,omitempty"`
-	SNI                string     `json:"sni,omitempty"`
-	Severity           Severity   `json:"severity"`
-	Issuer             string     `json:"issuer,omitempty"`
-	CipherSuite        string     `json:"cipherSuite,omitempty"`
-	Notes              string     `json:"notes,omitempty"`
-	SignatureAlgorithm string     `json:"signatureAlgorithm,omitempty"`
-	Serial             string     `json:"serial,omitempty"`
-	FindingType        string     `json:"findingType,omitempty"`
-	PolicyName         string     `json:"policyName,omitempty"`
-	KeyAlgorithm       string     `json:"keyAlgorithm,omitempty"`
-	PostureIssues      []string   `json:"postureIssues,omitempty"`
-	ChainErrors        []string   `json:"chainErrors,omitempty"`
-	DNSNames           []string   `json:"dnsNames,omitempty"`
-	ChainLen           int        `json:"chainLen,omitempty"`
-	KeySize            int        `json:"keySize,omitempty"`
-	ProbeOK            bool       `json:"probeOk"`
-	SelfSigned         bool       `json:"selfSigned,omitempty"`
+	NotAfter           time.Time         `json:"notAfter"`
+	RawIssuer          *x509.Certificate `json:"-"`
+	RawCert            *x509.Certificate `json:"-"`
+	SignatureAlgorithm string            `json:"signatureAlgorithm,omitempty"`
+	FindingType        string            `json:"findingType,omitempty"`
+	Namespace          string            `json:"namespace,omitempty"`
+	Cluster            string            `json:"cluster,omitempty"`
+	Source             SourceKind        `json:"source"`
+	Target             string            `json:"target,omitempty"`
+	SNI                string            `json:"sni,omitempty"`
+	Severity           Severity          `json:"severity"`
+	Issuer             string            `json:"issuer,omitempty"`
+	CipherSuite        string            `json:"cipherSuite,omitempty"`
+	Notes              string            `json:"notes,omitempty"`
+	ProbeErr           string            `json:"probeError,omitempty"`
+	Serial             string            `json:"serial,omitempty"`
+	Name               string            `json:"name,omitempty"`
+	PolicyName         string            `json:"policyName,omitempty"`
+	KeyAlgorithm       string            `json:"keyAlgorithm,omitempty"`
+	Subject            string            `json:"subject,omitempty"`
+	TLSVersion         string            `json:"tlsVersion,omitempty"`
+	ChainErrors        []string          `json:"chainErrors,omitempty"`
+	DNSNames           []string          `json:"dnsNames,omitempty"`
+	RevocationIssues   []string          `json:"revocationIssues,omitempty"`
+	PostureIssues      []string          `json:"postureIssues,omitempty"`
+	OCSPStaple         []byte            `json:"-"`
+	ChainLen           int               `json:"chainLen,omitempty"`
+	KeySize            int               `json:"keySize,omitempty"`
+	ProbeOK            bool              `json:"probeOk"`
+	SelfSigned         bool              `json:"selfSigned,omitempty"`
 }
 
 // Snapshot is a point-in-time collection of findings.

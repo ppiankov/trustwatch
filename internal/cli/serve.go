@@ -30,6 +30,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/metrics"
 	"github.com/ppiankov/trustwatch/internal/notify"
 	"github.com/ppiankov/trustwatch/internal/policy"
+	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/store"
 	"github.com/ppiankov/trustwatch/internal/telemetry"
 	"github.com/ppiankov/trustwatch/internal/web"
@@ -80,6 +81,7 @@ func init() {
 	serveCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
 	serveCmd.Flags().String("cluster-name", "", "Name for this cluster in federated views")
 	serveCmd.Flags().StringSlice("remote", nil, "Remote trustwatch URLs (name=url format)")
+	serveCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -241,6 +243,10 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 	if tracer != nil {
 		orchOpts = append(orchOpts, discovery.WithTracer(tracer))
+	}
+	checkRevocation, _ := cmd.Flags().GetBool("check-revocation") //nolint:errcheck // flag registered above
+	if checkRevocation {
+		orchOpts = append(orchOpts, discovery.WithCheckRevocation(revocation.NewCRLCache()))
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 

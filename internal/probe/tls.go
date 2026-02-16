@@ -19,12 +19,13 @@ const defaultTimeout = 5 * time.Second
 
 // Result holds the outcome of a TLS probe.
 type Result struct {
-	Cert        *x509.Certificate
-	ProbeErr    string
-	Chain       []*x509.Certificate
-	TLSVersion  uint16
-	CipherSuite uint16
-	ProbeOK     bool
+	Cert         *x509.Certificate
+	ProbeErr     string
+	Chain        []*x509.Certificate
+	OCSPResponse []byte
+	TLSVersion   uint16
+	CipherSuite  uint16
+	ProbeOK      bool
 }
 
 // Probe connects to a TLS endpoint and returns the presented certificate.
@@ -83,11 +84,12 @@ func ProbeWithDialer(raw string, dialFn DialContextFunc) Result {
 	}
 
 	return Result{
-		Cert:        state.PeerCertificates[0],
-		Chain:       state.PeerCertificates,
-		TLSVersion:  state.Version,
-		CipherSuite: state.CipherSuite,
-		ProbeOK:     true,
+		Cert:         state.PeerCertificates[0],
+		Chain:        state.PeerCertificates,
+		OCSPResponse: state.OCSPResponse,
+		TLSVersion:   state.Version,
+		CipherSuite:  state.CipherSuite,
+		ProbeOK:      true,
 	}
 }
 

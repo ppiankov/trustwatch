@@ -17,7 +17,7 @@ import (
 )
 
 // applyProbeChainValidation runs chain and posture validation on a probe result and populates finding fields.
-func applyProbeChainValidation(finding *store.CertFinding, pr probe.Result, hostname string) {
+func applyProbeChainValidation(finding *store.CertFinding, pr *probe.Result, hostname string) {
 	finding.ChainLen = len(pr.Chain)
 	if len(pr.Chain) > 0 {
 		applyCertMetadata(finding, pr.Chain[0], pr.Chain)
@@ -36,6 +36,15 @@ func applyProbeChainValidation(finding *store.CertFinding, pr probe.Result, host
 	}
 	if issues := probe.EvaluatePosture(pr.TLSVersion, pr.CipherSuite); len(issues) > 0 {
 		finding.PostureIssues = issues
+	}
+
+	// Store raw cert references for optional revocation post-processing
+	if len(pr.Chain) > 0 {
+		finding.RawCert = pr.Chain[0]
+		if len(pr.Chain) > 1 {
+			finding.RawIssuer = pr.Chain[1]
+		}
+		finding.OCSPStaple = pr.OCSPResponse
 	}
 }
 

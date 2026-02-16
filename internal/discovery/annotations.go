@@ -152,7 +152,7 @@ func (d *AnnotationDiscoverer) probeTarget(target, sni, namespace, name string, 
 		finding.Issuer = result.Cert.Issuer.String()
 		finding.Subject = result.Cert.Subject.String()
 		finding.Serial = result.Cert.SerialNumber.String()
-		applyProbeChainValidation(&finding, result, extractHostFromTarget(target))
+		applyProbeChainValidation(&finding, &result, extractHostFromTarget(target))
 	}
 
 	return finding
