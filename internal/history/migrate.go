@@ -1,6 +1,9 @@
 package history
 
-import "database/sql"
+import (
+	"database/sql"
+	"strings"
+)
 
 const schema = `
 CREATE TABLE IF NOT EXISTS snapshots (
@@ -29,6 +32,23 @@ CREATE INDEX IF NOT EXISTS idx_findings_trend ON findings(source, namespace, nam
 `
 
 func migrate(db *sql.DB) error {
-	_, err := db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+	// v2: add serial and issuer columns for drift detection (idempotent)
+	for _, stmt := range []string{
+		"ALTER TABLE findings ADD COLUMN serial TEXT DEFAULT ''",
+		"ALTER TABLE findings ADD COLUMN issuer TEXT DEFAULT ''",
+	} {
+		if _, err := db.Exec(stmt); err != nil && !isDuplicateColumn(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func isDuplicateColumn(err error) bool {
+	// SQLite returns "duplicate column name" when the column already exists.
+	msg := err.Error()
+	return strings.Contains(msg, "duplicate column") || strings.Contains(msg, "already exists")
 }

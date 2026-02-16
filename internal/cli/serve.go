@@ -26,6 +26,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/discovery"
+	"github.com/ppiankov/trustwatch/internal/drift"
 	"github.com/ppiankov/trustwatch/internal/federation"
 	"github.com/ppiankov/trustwatch/internal/history"
 	"github.com/ppiankov/trustwatch/internal/metrics"
@@ -85,6 +86,7 @@ func init() {
 	serveCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
 	serveCmd.Flags().StringSlice("ct-domains", nil, "Domains to monitor in CT logs")
 	serveCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
+	serveCmd.Flags().Bool("detect-drift", false, "Detect certificate changes between consecutive scans")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -278,6 +280,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		slog.Info("federation enabled", "cluster", clusterName, "remotes", len(remoteSources))
 	}
 
+	// Drift detection
+	detectDrift, _ := cmd.Flags().GetBool("detect-drift") //nolint:errcheck // flag registered above
+
 	// Notifications (nil if not configured)
 	notifier := notify.New(cfg.Notifications)
 
@@ -328,6 +333,17 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	scan := func() {
 		start := time.Now()
 		snap := orch.Run()
+
+		// Detect certificate drift vs previous scan
+		if detectDrift {
+			mu.RLock()
+			prev := currentSnap
+			mu.RUnlock()
+			if !prev.At.IsZero() {
+				driftFindings := drift.Detect(prev.Findings, snap.Findings)
+				snap.Findings = append(snap.Findings, driftFindings...)
+			}
+		}
 
 		// Federate with remote clusters
 		if len(remoteSources) > 0 {
