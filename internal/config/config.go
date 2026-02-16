@@ -36,19 +36,21 @@ type RemoteCluster struct {
 
 // Config holds trustwatch runtime configuration.
 type Config struct {
-	ListenAddr    string             `yaml:"listenAddr"`
-	MetricsPath   string             `yaml:"metricsPath"`
-	HistoryDB     string             `yaml:"historyDB"`
-	SPIFFESocket  string             `yaml:"spiffeSocket"`
-	OTelEndpoint  string             `yaml:"otelEndpoint"`
-	ClusterName   string             `yaml:"clusterName"`
-	Namespaces    []string           `yaml:"namespaces"`
-	External      []ExternalTarget   `yaml:"external"`
-	Remotes       []RemoteCluster    `yaml:"remotes"`
-	Notifications NotificationConfig `yaml:"notifications"`
-	RefreshEvery  time.Duration      `yaml:"refreshEvery"`
-	WarnBefore    time.Duration      `yaml:"warnBefore"`
-	CritBefore    time.Duration      `yaml:"critBefore"`
+	ListenAddr       string             `yaml:"listenAddr"`
+	MetricsPath      string             `yaml:"metricsPath"`
+	HistoryDB        string             `yaml:"historyDB"`
+	SPIFFESocket     string             `yaml:"spiffeSocket"`
+	OTelEndpoint     string             `yaml:"otelEndpoint"`
+	ClusterName      string             `yaml:"clusterName"`
+	Namespaces       []string           `yaml:"namespaces"`
+	External         []ExternalTarget   `yaml:"external"`
+	Remotes          []RemoteCluster    `yaml:"remotes"`
+	CTDomains        []string           `yaml:"ctDomains"`
+	CTAllowedIssuers []string           `yaml:"ctAllowedIssuers"`
+	Notifications    NotificationConfig `yaml:"notifications"`
+	RefreshEvery     time.Duration      `yaml:"refreshEvery"`
+	WarnBefore       time.Duration      `yaml:"warnBefore"`
+	CritBefore       time.Duration      `yaml:"critBefore"`
 }
 
 // Defaults returns a Config with sane defaults.

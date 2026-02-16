@@ -187,8 +187,8 @@ func TestCheckCommand_Flags(t *testing.T) {
 		"config", "kubeconfig", "context", "namespace",
 		"warn-before", "crit-before",
 		"tunnel", "tunnel-ns", "tunnel-image",
-		"check-revocation", "spiffe-socket",
-		"output", "quiet",
+		"check-revocation", "ct-domains", "ct-allowed-issuers",
+		"spiffe-socket", "output", "quiet",
 	}
 	for _, name := range flags {
 		if checkCmd.Flags().Lookup(name) == nil {

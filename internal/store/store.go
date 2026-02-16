@@ -38,6 +38,7 @@ const (
 	SourceAWSACM             SourceKind = "cloud.aws.acm"
 	SourceGCPManagedCert     SourceKind = "cloud.gcp.cert"
 	SourceAzureKeyVault      SourceKind = "cloud.azure.keyvault"
+	SourceCT                 SourceKind = "ct"
 )
 
 // CertFinding represents a single trust surface observation.

@@ -24,6 +24,7 @@ import (
 	gatewayclient "sigs.k8s.io/gateway-api/pkg/client/clientset/versioned"
 
 	"github.com/ppiankov/trustwatch/internal/config"
+	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/discovery"
 	"github.com/ppiankov/trustwatch/internal/federation"
 	"github.com/ppiankov/trustwatch/internal/history"
@@ -82,6 +83,8 @@ func init() {
 	serveCmd.Flags().String("cluster-name", "", "Name for this cluster in federated views")
 	serveCmd.Flags().StringSlice("remote", nil, "Remote trustwatch URLs (name=url format)")
 	serveCmd.Flags().Bool("check-revocation", false, "Check certificate revocation via OCSP/CRL")
+	serveCmd.Flags().StringSlice("ct-domains", nil, "Domains to monitor in CT logs")
+	serveCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -247,6 +250,17 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	checkRevocation, _ := cmd.Flags().GetBool("check-revocation") //nolint:errcheck // flag registered above
 	if checkRevocation {
 		orchOpts = append(orchOpts, discovery.WithCheckRevocation(revocation.NewCRLCache()))
+	}
+	ctDomains, _ := cmd.Flags().GetStringSlice("ct-domains") //nolint:errcheck // flag registered above
+	if len(ctDomains) == 0 {
+		ctDomains = cfg.CTDomains
+	}
+	ctIssuers, _ := cmd.Flags().GetStringSlice("ct-allowed-issuers") //nolint:errcheck // flag registered above
+	if len(ctIssuers) == 0 {
+		ctIssuers = cfg.CTAllowedIssuers
+	}
+	if len(ctDomains) > 0 {
+		orchOpts = append(orchOpts, discovery.WithCTCheck(ctDomains, ctIssuers, ct.NewClient()))
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
 

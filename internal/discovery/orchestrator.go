@@ -9,6 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/ppiankov/trustwatch/internal/ct"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/store"
@@ -16,13 +17,16 @@ import (
 
 // Orchestrator runs all discoverers concurrently and classifies findings.
 type Orchestrator struct {
-	tracer      trace.Tracer
-	nowFn       func() time.Time
-	crlCache    *revocation.CRLCache
-	policies    []policy.TrustPolicy
-	discoverers []Discoverer
-	warnBefore  time.Duration
-	critBefore  time.Duration
+	tracer           trace.Tracer
+	nowFn            func() time.Time
+	crlCache         *revocation.CRLCache
+	ctClient         *ct.Client
+	policies         []policy.TrustPolicy
+	discoverers      []Discoverer
+	ctDomains        []string
+	ctAllowedIssuers []string
+	warnBefore       time.Duration
+	critBefore       time.Duration
 }
 
 // OrchestratorOption configures an Orchestrator.
@@ -39,6 +43,15 @@ func WithTracer(t trace.Tracer) OrchestratorOption {
 func WithCheckRevocation(cache *revocation.CRLCache) OrchestratorOption {
 	return func(o *Orchestrator) {
 		o.crlCache = cache
+	}
+}
+
+// WithCTCheck enables Certificate Transparency log monitoring for the given domains.
+func WithCTCheck(domains, allowedIssuers []string, client *ct.Client) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.ctDomains = domains
+		o.ctAllowedIssuers = allowedIssuers
+		o.ctClient = client
 	}
 }
 
@@ -138,6 +151,30 @@ func (o *Orchestrator) Run() store.Snapshot {
 		allFindings[i].RawCert = nil
 		allFindings[i].RawIssuer = nil
 		allFindings[i].OCSPStaple = nil
+	}
+
+	// Run CT log comparison if enabled
+	if len(o.ctDomains) > 0 && o.ctClient != nil {
+		knownSerials := make(map[string]bool, len(allFindings))
+		for i := range allFindings {
+			if s := allFindings[i].Serial; s != "" {
+				knownSerials[s] = true
+			}
+		}
+		for _, domain := range o.ctDomains {
+			entries, fetchErr := o.ctClient.FetchCerts(ctx, domain)
+			if fetchErr != nil {
+				slog.Warn("CT log query failed", "domain", domain, "err", fetchErr)
+				discoveryErrors["ct:"+domain] = fetchErr.Error()
+				continue
+			}
+			slog.Debug("CT log entries", "domain", domain, "count", len(entries))
+			ctFindings := ct.Check(entries, knownSerials, o.ctAllowedIssuers)
+			for i := range ctFindings {
+				ctFindings[i].Target = domain
+			}
+			allFindings = append(allFindings, ctFindings...)
+		}
 	}
 
 	// Evaluate policy rules
