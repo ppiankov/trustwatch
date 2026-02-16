@@ -39,8 +39,8 @@ func TestRootCommand_Help(t *testing.T) {
 }
 
 func TestVersionCommand(t *testing.T) {
-	SetVersion("test-v0.0.1")
-	defer SetVersion("dev")
+	SetBuildInfo("0.0.1", "abc1234", "2025-01-01T00:00:00Z")
+	defer SetBuildInfo("dev", "none", "unknown")
 
 	// version uses fmt.Println (stdout), so just verify the command exists and runs
 	ver, _, err := rootCmd.Find([]string{"version"})
@@ -50,8 +50,8 @@ func TestVersionCommand(t *testing.T) {
 	if ver.Use != "version" {
 		t.Errorf("expected Use='version', got %q", ver.Use)
 	}
-	if version != "test-v0.0.1" {
-		t.Errorf("expected version 'test-v0.0.1', got %q", version)
+	if version != "0.0.1" {
+		t.Errorf("expected version '0.0.1', got %q", version)
 	}
 }
 

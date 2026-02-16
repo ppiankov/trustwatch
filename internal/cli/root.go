@@ -9,10 +9,14 @@ import (
 )
 
 var version = "dev"
+var commit = "none"
+var date = "unknown"
 
-// SetVersion sets the version string (called from main).
-func SetVersion(v string) {
+// SetBuildInfo sets the version info (called from main).
+func SetBuildInfo(v, c, d string) {
 	version = v
+	commit = c
+	date = d
 }
 
 var rootCmd = &cobra.Command{

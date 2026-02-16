@@ -57,7 +57,9 @@ jobs:
           VERSION=${{ steps.tag.outputs.version }}
           VERSION_NUM=${VERSION#v}
           PROJECT=trustwatch
-          LDFLAGS="-s -w -X main.Version=${VERSION_NUM}"
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          LDFLAGS="-s -w -X main.version=${VERSION_NUM} -X main.commit=${COMMIT} -X main.date=${DATE}"
 
           platforms=(
             "linux/amd64"
