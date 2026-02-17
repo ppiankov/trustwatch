@@ -338,3 +338,112 @@ func TestSnapshotHandler_UnknownValueReturnsEmpty(t *testing.T) {
 		t.Errorf("findings = %d, want 0", len(snap.Findings))
 	}
 }
+
+func TestReadyzHandler_Ready(t *testing.T) {
+	snap := store.Snapshot{
+		At: time.Now(),
+		Findings: []store.CertFinding{
+			{Source: store.SourceWebhook, Name: "a", ProbeOK: true},
+			{Source: store.SourceExternal, Name: "b", ProbeOK: true},
+		},
+	}
+	getSnap := func() store.Snapshot { return snap }
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
+	w := httptest.NewRecorder()
+	ReadyzHandler(getSnap, 5*time.Minute)(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("content-type = %q, want application/json", ct)
+	}
+
+	var resp readyzResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Ready {
+		t.Error("expected ready=true")
+	}
+	if resp.FindingsCount != 2 {
+		t.Errorf("findingsCount = %d, want 2", resp.FindingsCount)
+	}
+	if resp.LastScan == "" {
+		t.Error("expected lastScan to be set")
+	}
+}
+
+func TestReadyzHandler_Stale(t *testing.T) {
+	staleSnap := store.Snapshot{At: time.Now().Add(-10 * time.Minute)}
+	getSnap := func() store.Snapshot { return staleSnap }
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
+	w := httptest.NewRecorder()
+	ReadyzHandler(getSnap, 5*time.Minute)(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+
+	var resp readyzResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Ready {
+		t.Error("expected ready=false for stale scan")
+	}
+}
+
+func TestReadyzHandler_NoScan(t *testing.T) {
+	getSnap := func() store.Snapshot { return store.Snapshot{} }
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
+	w := httptest.NewRecorder()
+	ReadyzHandler(getSnap, 5*time.Minute)(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusServiceUnavailable)
+	}
+
+	var resp readyzResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if resp.Ready {
+		t.Error("expected ready=false when no scan completed")
+	}
+	if resp.FindingsCount != 0 {
+		t.Errorf("findingsCount = %d, want 0", resp.FindingsCount)
+	}
+}
+
+func TestReadyzHandler_WithErrors(t *testing.T) {
+	snap := store.Snapshot{
+		At:     time.Now(),
+		Errors: map[string]string{"webhooks": "forbidden"},
+		Findings: []store.CertFinding{
+			{Source: store.SourceExternal, Name: "a", ProbeOK: true},
+		},
+	}
+	getSnap := func() store.Snapshot { return snap }
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", http.NoBody)
+	w := httptest.NewRecorder()
+	ReadyzHandler(getSnap, 5*time.Minute)(w, req)
+
+	var resp readyzResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !resp.Ready {
+		t.Error("expected ready=true (errors don't block readiness)")
+	}
+	if len(resp.DiscoveryErrors) != 1 {
+		t.Errorf("discoveryErrors = %d, want 1", len(resp.DiscoveryErrors))
+	}
+	if !strings.Contains(resp.DiscoveryErrors[0], "webhooks") {
+		t.Errorf("expected 'webhooks' in error, got %q", resp.DiscoveryErrors[0])
+	}
+}

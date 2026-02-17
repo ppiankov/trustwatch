@@ -155,6 +155,44 @@ func HealthzHandler(getSnapshot SnapshotFunc, maxAge time.Duration) http.Handler
 	}
 }
 
+type readyzResponse struct {
+	LastScan        string   `json:"lastScan"`
+	ScanAge         string   `json:"scanAge"`
+	DiscoveryErrors []string `json:"discoveryErrors,omitempty"`
+	FindingsCount   int      `json:"findingsCount"`
+	Ready           bool     `json:"ready"`
+}
+
+// ReadyzHandler returns JSON readiness detail.
+// Returns 200 when scan is fresh, 503 when stale or no scan completed.
+func ReadyzHandler(getSnapshot SnapshotFunc, maxAge time.Duration) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		snap := getSnapshot()
+
+		resp := readyzResponse{
+			FindingsCount: len(snap.Findings),
+		}
+
+		if !snap.At.IsZero() {
+			resp.LastScan = snap.At.Format(time.RFC3339)
+			resp.ScanAge = time.Since(snap.At).Truncate(time.Second).String()
+		}
+
+		for source, errMsg := range snap.Errors {
+			resp.DiscoveryErrors = append(resp.DiscoveryErrors, source+": "+errMsg)
+		}
+
+		resp.Ready = !snap.At.IsZero() && (maxAge <= 0 || time.Since(snap.At) <= maxAge)
+
+		if !resp.Ready {
+			w.WriteHeader(http.StatusServiceUnavailable)
+		}
+
+		json.NewEncoder(w).Encode(resp) //nolint:errcheck // best-effort response body
+	}
+}
+
 type pageData struct {
 	ScanTime       string
 	Findings       []findingRow
