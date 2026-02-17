@@ -242,7 +242,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		defer tracerShutdown(context.Background()) //nolint:errcheck // best-effort flush
 	}
 
+	// Prometheus metrics
+	registry := prometheus.NewRegistry()
+	collector := metrics.NewCollector(registry)
+
 	var orchOpts []discovery.OrchestratorOption
+	orchOpts = append(orchOpts, discovery.WithDiscoverTimer(collector.ObserveDiscovererDuration))
 	if len(loadedPolicies) > 0 {
 		orchOpts = append(orchOpts, discovery.WithPolicies(loadedPolicies))
 	}
@@ -296,10 +301,6 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		defer mu.RUnlock()
 		return currentSnap
 	}
-
-	// Prometheus metrics
-	registry := prometheus.NewRegistry()
-	collector := metrics.NewCollector(registry)
 
 	// HTTP server
 	mux := http.NewServeMux()

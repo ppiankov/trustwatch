@@ -219,6 +219,21 @@ func TestUpdate_ProbeFailed(t *testing.T) {
 	}
 }
 
+func TestObserveDiscovererDuration(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c := NewCollector(reg)
+
+	c.ObserveDiscovererDuration("webhooks", 250*time.Millisecond)
+	c.ObserveDiscovererDuration("webhooks", 750*time.Millisecond)
+	c.ObserveDiscovererDuration("apiservices", 1500*time.Millisecond)
+
+	// Verify histogram sample counts via CollectAndCount
+	count := testutil.CollectAndCount(c.discovererDuration)
+	if count != 2 { // 2 label sets: webhooks, apiservices
+		t.Errorf("discoverer_duration_seconds label sets = %d, want 2", count)
+	}
+}
+
 func TestUpdate_DiscoveryErrors(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	c := NewCollector(reg)
