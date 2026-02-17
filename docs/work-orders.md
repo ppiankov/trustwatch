@@ -1232,3 +1232,173 @@ A Linkerd identity issuer Certificate with `duration: 48h` rotates the intermedi
 - `internal/config/config.go` — add APIKey to webhook config
 
 **Verification**: `make check` passes. Grafana notifier sends annotation via httptest mock.
+
+---
+
+## Phase 5: Production Hardening & Operational Polish (T52–T61)
+
+### WO-T52: Scan staleness metric and alert rule
+
+**Goal**: Let operators detect when trustwatch stops scanning. Add a timestamp gauge so Prometheus can fire a staleness alert before anyone notices missing data.
+
+**Details**:
+- Add `trustwatch_last_scan_timestamp_seconds` gauge to the metrics collector — set to `snap.At.Unix()` on each Update call
+- Add a staleness alert to the PrometheusRule template in the `rules` command: `time() - trustwatch_last_scan_timestamp_seconds > 600` (10 minutes)
+- The gauge has no labels (one value per instance)
+
+**Files**:
+- `internal/metrics/collector.go` — add gauge, set in Update()
+- `internal/metrics/collector_test.go` — verify gauge is set after Update
+- `internal/cli/rules.go` — append staleness alert to template
+
+**Verification**: `make check` passes. After `collector.Update()`, `trustwatch_last_scan_timestamp_seconds` is non-zero. `trustwatch rules` output includes `TrustwatchScanStale` alert.
+
+### WO-T53: Per-discoverer duration histograms
+
+**Goal**: Surface which discoverers are slow so operators can debug scan latency. A histogram per source lets Prometheus compute p50/p99 per discoverer.
+
+**Details**:
+- Add `trustwatch_discoverer_duration_seconds` histogram with `source` label
+- Instrument the orchestrator goroutines: record wall-clock time for each `d.Discover()` call
+- Pass a `MetricsCollector` interface (or the histogram directly) to the orchestrator via an option
+- Bucket defaults: 0.1, 0.25, 0.5, 1, 2.5, 5, 10 seconds
+
+**Files**:
+- `internal/metrics/collector.go` — add histogram, expose via accessor method
+- `internal/metrics/collector_test.go` — verify histogram is observed after Update
+- `internal/discovery/orchestrator.go` — add `WithMetrics()` option, time each discoverer goroutine
+
+**Verification**: `make check` passes. After a scan, `/metrics` includes `trustwatch_discoverer_duration_seconds_bucket{source="k8s.webhook",...}` lines.
+
+### WO-T54: CSV output format
+
+**Goal**: Add `--output csv` to `now` and `check` for spreadsheet import and compliance evidence pipelines.
+
+**Details**:
+- Create `internal/report/csv.go` with `WriteCSV(w io.Writer, findings []store.CertFinding) error`
+- Header row: name, namespace, source, severity, notAfter, issuer, serial, findingType, remediation, probeOk
+- One row per finding, RFC 3339 timestamp format, proper quoting
+- Wire into `now` and `check` commands alongside existing json/table formats
+
+**Files**:
+- `internal/report/csv.go` — new: CSV writer using `encoding/csv`
+- `internal/report/csv_test.go` — new: verify header, row count, quoting
+- `internal/cli/now.go` — add `"csv"` case to output switch
+- `internal/cli/check.go` — add `"csv"` case to output switch
+
+**Verification**: `make check` passes. `trustwatch now --output csv` produces valid CSV with correct header and one row per finding.
+
+### WO-T55: Shell completion command
+
+**Goal**: Enable tab-completion for all trustwatch commands and flags in bash, zsh, fish, and PowerShell.
+
+**Details**:
+- Register `trustwatch completion` using Cobra's built-in `GenBashCompletionV2`, `GenZshCompletion`, `GenFishCompletion`, `GenPowerShellCompletion`
+- Subcommands: `trustwatch completion bash`, `trustwatch completion zsh`, etc.
+- Include usage instructions in the command's long description
+
+**Files**:
+- `internal/cli/completion.go` — new: register completion subcommand with Cobra
+
+**Verification**: `make check` passes. `trustwatch completion bash` outputs valid bash completion script. `trustwatch completion zsh` outputs valid zsh completion script.
+
+### WO-T56: Config validation subcommand
+
+**Goal**: Pre-flight check a config file before deploying. Catch YAML syntax errors, invalid thresholds, and missing required fields without connecting to a cluster.
+
+**Details**:
+- `trustwatch validate <file>` — loads YAML via `config.Load()`, prints validation errors, exits 0 on success / 1 on failure
+- Print each validation error on its own line for CI parsing
+- No cluster connection required
+
+**Files**:
+- `internal/cli/validate.go` — new: Cobra command, calls config.Load(), prints errors
+- `internal/cli/validate_test.go` — new: valid config → exit 0, invalid config → exit 1, missing file → error
+
+**Verification**: `make check` passes. `trustwatch validate testdata/valid.yaml` exits 0. `trustwatch validate testdata/invalid.yaml` exits 1 with clear error message.
+
+### WO-T57: Web UI server-side filtering
+
+**Goal**: Let the `/api/v1/snapshot` endpoint accept query params for filtering, making the API scriptable and reducing client-side processing.
+
+**Details**:
+- Accept `?source=`, `?severity=`, `?namespace=` query params on `/api/v1/snapshot`
+- Apply as AND filters before JSON serialization
+- Multiple values via comma: `?severity=critical,warn`
+- UI handler also reads the same params so bookmarkable filtered URLs work
+- No breaking change — no params returns full snapshot as before
+
+**Files**:
+- `internal/web/handler.go` — add `filterFindings()` helper, apply in SnapshotHandler and UIHandler
+- `internal/web/handler_test.go` — test: no filter returns all, single filter works, multiple filters AND together, unknown values ignored
+
+**Verification**: `make check` passes. `curl /api/v1/snapshot?severity=critical` returns only critical findings. No params returns everything.
+
+### WO-T58: Certificate baseline command
+
+**Goal**: Capture a known-good certificate inventory and compare future scans against it. Detect unauthorized additions, unexpected removals, and issuer/serial changes relative to the approved baseline.
+
+**Details**:
+- `trustwatch baseline save -o baseline.json` — run a scan, write findings to JSON file (same format as `--output json` but with explicit `baselineAt` timestamp)
+- `trustwatch baseline check baseline.json` — run a scan, load baseline, call `drift.Detect()`, print drift findings, exit 0 (no drift) or 1 (drift detected)
+- Reuses existing `drift.Detect()` for comparison logic
+- Baseline file is portable — can be checked into git for change tracking
+
+**Files**:
+- `internal/cli/baseline.go` — new: `baseline save` and `baseline check` subcommands
+- `internal/cli/baseline_test.go` — new: round-trip save/load, drift detection with changed baseline
+
+**Verification**: `make check` passes. Save baseline, change a finding, check baseline → exit 1 with drift findings listed.
+
+### WO-T59: Scan context timeout
+
+**Goal**: Prevent runaway discoverers from blocking the scan loop. If a single discoverer hangs (e.g., unreachable API server), the scan should still complete with partial results.
+
+**Details**:
+- Add `--scan-timeout` flag to `serve` command (default: refresh interval minus 10s, minimum 30s)
+- Change `Orchestrator.Run()` to accept `context.Context` — pass it to discoverer goroutines
+- Each discoverer goroutine checks context cancellation
+- Timed-out discoverers are logged as errors in `snap.Errors` (same as existing failure handling)
+- `now` command gets the same flag (default: 2 minutes)
+
+**Files**:
+- `internal/discovery/orchestrator.go` — change `Run()` to `Run(ctx context.Context)`, pass ctx to goroutines
+- `internal/discovery/orchestrator_test.go` — test: cancelled context → discoverer error in snap.Errors
+- `internal/cli/serve.go` — add `--scan-timeout` flag, create context with timeout for each scan
+- `internal/cli/now.go` — add `--scan-timeout` flag
+
+**Verification**: `make check` passes. A mock discoverer that sleeps 10s with a 1s timeout → snap.Errors contains the discoverer name.
+
+### WO-T60: Readiness endpoint with detail
+
+**Goal**: Give Kubernetes and monitoring systems richer health information. The existing `/healthz` returns text ok/stale. Add `/readyz` with JSON detail for debugging readiness probe failures.
+
+**Details**:
+- Add `/readyz` endpoint returning JSON: `{"ready": bool, "scanAge": "2m30s", "lastScan": "2024-...", "discoveryErrors": ["source1: err"], "findingsCount": 42}`
+- Returns 200 when ready (scan fresh, no blocking errors), 503 when not
+- Ready = scan completed AND scan age < 2× refresh interval (same logic as `/healthz`)
+- Register in serve.go alongside existing `/healthz`
+
+**Files**:
+- `internal/web/handler.go` — add `ReadyzHandler()` returning JSON readiness detail
+- `internal/web/handler_test.go` — test: ready → 200 + JSON, stale → 503, no scan → 503
+- `internal/cli/serve.go` — register `/readyz` route
+
+**Verification**: `make check` passes. `/readyz` returns JSON with `ready: true` after a successful scan. `/readyz` returns 503 with `ready: false` when scan is stale.
+
+### WO-T61: Helm chart test and topologySpreadConstraints
+
+**Goal**: Add a Helm test pod for validating deployments, and topologySpreadConstraints for HA scheduling.
+
+**Details**:
+- Add `templates/tests/test-readyz.yaml` — Helm test pod that curls `/readyz` and exits 0/1
+- Add `topologySpreadConstraints` to values.yaml (empty default, templated into deployment)
+- Wire topologySpreadConstraints into `templates/deployment.yaml`
+- PDB, NetworkPolicy, nodeSelector, tolerations, and affinity already exist — no changes needed
+
+**Files**:
+- `charts/trustwatch/templates/tests/test-readyz.yaml` — new: Helm test pod
+- `charts/trustwatch/templates/deployment.yaml` — add topologySpreadConstraints block
+- `charts/trustwatch/values.yaml` — add `topologySpreadConstraints: []`
+
+**Verification**: `helm template` renders test pod. `helm lint` passes. topologySpreadConstraints appear in rendered deployment when set.
