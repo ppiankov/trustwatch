@@ -59,6 +59,7 @@ resources:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+topologySpreadConstraints: []
 
 # PodDisruptionBudget — useful when running multiple replicas.
 podDisruptionBudget:
