@@ -54,6 +54,7 @@ func TestRulesCommand_DefaultOutput(t *testing.T) {
 		"TrustwatchCertExpired",
 		"TrustwatchProbeFailed",
 		"TrustwatchDiscoveryErrors",
+		"TrustwatchScanStale",
 	}
 	for _, alert := range expectedAlerts {
 		if !strings.Contains(out, alert) {
