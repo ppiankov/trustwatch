@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -30,7 +31,7 @@ const (
 func TestOrchestrator_NoDiscoverers(t *testing.T) {
 	o := NewOrchestrator(nil, testWarnBefore, testCritBefore)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if snap.At != fixedNow() {
 		t.Errorf("expected At %v, got %v", fixedNow(), snap.At)
@@ -57,7 +58,7 @@ func TestOrchestrator_SingleDiscoverer(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if len(snap.Findings) != 1 {
 		t.Fatalf("expected 1 finding, got %d", len(snap.Findings))
@@ -81,7 +82,7 @@ func TestOrchestrator_MultipleDiscoverers(t *testing.T) {
 
 	o := NewOrchestrator([]Discoverer{d1, d2}, testWarnBefore, testCritBefore)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if len(snap.Findings) != 2 {
 		t.Fatalf("expected 2 findings, got %d", len(snap.Findings))
@@ -101,7 +102,7 @@ func TestOrchestrator_PartialFailure(t *testing.T) {
 
 	o := NewOrchestrator([]Discoverer{good, bad}, testWarnBefore, testCritBefore)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	// Should still get the good discoverer's findings
 	if len(snap.Findings) != 1 {
@@ -125,7 +126,7 @@ func TestOrchestrator_AllFailed(t *testing.T) {
 
 	o := NewOrchestrator([]Discoverer{bad1, bad2}, testWarnBefore, testCritBefore)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if len(snap.Findings) != 0 {
 		t.Errorf("expected 0 findings when all fail, got %d", len(snap.Findings))
@@ -152,7 +153,7 @@ func TestOrchestrator_ClassifyExpired(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if snap.Findings[0].Severity != store.SeverityCritical {
 		t.Errorf("expired cert: expected severity %q, got %q", store.SeverityCritical, snap.Findings[0].Severity)
@@ -176,7 +177,7 @@ func TestOrchestrator_ClassifyCritical(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if snap.Findings[0].Severity != store.SeverityCritical {
 		t.Errorf("crit-threshold cert: expected severity %q, got %q", store.SeverityCritical, snap.Findings[0].Severity)
@@ -200,7 +201,7 @@ func TestOrchestrator_ClassifyWarn(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if snap.Findings[0].Severity != store.SeverityWarn {
 		t.Errorf("warn-threshold cert: expected severity %q, got %q", store.SeverityWarn, snap.Findings[0].Severity)
@@ -224,7 +225,7 @@ func TestOrchestrator_ClassifyHealthy(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if snap.Findings[0].Severity != store.SeverityInfo {
 		t.Errorf("healthy cert: expected severity %q, got %q", store.SeverityInfo, snap.Findings[0].Severity)
@@ -257,7 +258,7 @@ func TestOrchestrator_WebhookEscalation(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if len(snap.Findings) != 2 {
 		t.Fatalf("expected 2 findings, got %d", len(snap.Findings))
@@ -308,7 +309,7 @@ func TestOrchestrator_IgnoreWebhookSeverityCap(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if len(snap.Findings) != 3 {
 		t.Fatalf("expected 3 findings, got %d", len(snap.Findings))
@@ -346,7 +347,7 @@ func TestOrchestrator_SkipsProbeFailedFindings(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	// Severity should remain unchanged (classification skipped)
 	if snap.Findings[0].Severity != store.SeverityInfo {
@@ -357,7 +358,7 @@ func TestOrchestrator_SkipsProbeFailedFindings(t *testing.T) {
 func TestOrchestrator_SnapshotTimestamp(t *testing.T) {
 	o := NewOrchestrator(nil, testWarnBefore, testCritBefore)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if !snap.At.Equal(fixedNow()) {
 		t.Errorf("expected snapshot At %v, got %v", fixedNow(), snap.At)
@@ -378,7 +379,7 @@ func TestOrchestrator_ConcurrentExecution(t *testing.T) {
 
 	o := NewOrchestrator(discoverers, testWarnBefore, testCritBefore)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	if len(snap.Findings) != 10 {
 		t.Errorf("expected 10 findings from 10 concurrent discoverers, got %d", len(snap.Findings))
@@ -581,10 +582,47 @@ func TestOrchestrator_PreservesOriginalSeverityWhenHealthy(t *testing.T) {
 		testWarnBefore, testCritBefore,
 	)
 	o.nowFn = fixedNow
-	snap := o.Run()
+	snap := o.Run(context.Background())
 
 	// Should preserve the structural critical severity
 	if snap.Findings[0].Severity != store.SeverityCritical {
 		t.Errorf("expected structural severity preserved as %q, got %q", store.SeverityCritical, snap.Findings[0].Severity)
+	}
+}
+
+// slowDiscoverer simulates a discoverer that takes longer than the scan timeout.
+type slowDiscoverer struct {
+	name  string
+	delay time.Duration
+}
+
+func (s *slowDiscoverer) Name() string { return s.name }
+func (s *slowDiscoverer) Discover() ([]store.CertFinding, error) {
+	time.Sleep(s.delay)
+	return nil, nil
+}
+
+func TestOrchestrator_ScanTimeout(t *testing.T) {
+	o := NewOrchestrator(
+		[]Discoverer{
+			&stubDiscoverer{name: "fast", findings: []store.CertFinding{
+				{Source: store.SourceWebhook, Namespace: "default", Name: "fast-hook", ProbeOK: true, NotAfter: fixedNow().Add(8760 * time.Hour)},
+			}},
+			&slowDiscoverer{name: "slow", delay: 500 * time.Millisecond},
+		},
+		testWarnBefore, testCritBefore,
+	)
+	o.nowFn = fixedNow
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	snap := o.Run(ctx)
+
+	// The slow discoverer should appear in errors
+	if snap.Errors == nil {
+		t.Fatal("expected errors map to contain slow discoverer")
+	}
+	if _, ok := snap.Errors["slow"]; !ok {
+		t.Errorf("expected errors[\"slow\"], got %v", snap.Errors)
 	}
 }

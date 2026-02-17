@@ -300,7 +300,7 @@ func runImpact(cmd *cobra.Command, _ []string) error { //nolint:dupl // intentio
 		orchOpts = append(orchOpts, discovery.WithCTCheck(ctDomains, ctIssuers, ct.NewClient()))
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
-	snap := orch.Run()
+	snap := orch.Run(context.Background())
 	slog.Info("scan complete", "findings", len(snap.Findings))
 
 	ignoreManaged, _ := cmd.Flags().GetBool("ignore-managed") //nolint:errcheck // flag registered above
