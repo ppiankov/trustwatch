@@ -190,3 +190,151 @@ func TestUIHandler_EmptySnapshot(t *testing.T) {
 		t.Error("expected 'No problems found' for empty snapshot")
 	}
 }
+
+func TestSnapshotHandler_NoFilter(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Namespace: "default", Name: "a", ProbeOK: true},
+		{Source: store.SourceExternal, Severity: store.SeverityInfo, Namespace: "", Name: "b", ProbeOK: true},
+		{Source: store.SourceAPIService, Severity: store.SeverityWarn, Namespace: "kube-system", Name: "c", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 3 {
+		t.Errorf("findings = %d, want 3", len(snap.Findings))
+	}
+}
+
+func TestSnapshotHandler_FilterBySeverity(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Name: "a", ProbeOK: true},
+		{Source: store.SourceExternal, Severity: store.SeverityInfo, Name: "b", ProbeOK: true},
+		{Source: store.SourceAPIService, Severity: store.SeverityWarn, Name: "c", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot?severity=critical", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(snap.Findings))
+	}
+	if snap.Findings[0].Name != "a" {
+		t.Errorf("finding name = %q, want %q", snap.Findings[0].Name, "a")
+	}
+}
+
+func TestSnapshotHandler_FilterMultipleSeverities(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Name: "a", ProbeOK: true},
+		{Source: store.SourceExternal, Severity: store.SeverityInfo, Name: "b", ProbeOK: true},
+		{Source: store.SourceAPIService, Severity: store.SeverityWarn, Name: "c", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot?severity=critical,warn", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 2 {
+		t.Errorf("findings = %d, want 2", len(snap.Findings))
+	}
+}
+
+func TestSnapshotHandler_FilterBySource(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Name: "a", ProbeOK: true},
+		{Source: store.SourceExternal, Severity: store.SeverityInfo, Name: "b", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot?source=external", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(snap.Findings))
+	}
+	if snap.Findings[0].Name != "b" {
+		t.Errorf("finding name = %q, want %q", snap.Findings[0].Name, "b")
+	}
+}
+
+func TestSnapshotHandler_FilterByNamespace(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Namespace: "default", Name: "a", ProbeOK: true},
+		{Source: store.SourceWebhook, Severity: store.SeverityWarn, Namespace: "kube-system", Name: "b", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot?namespace=kube-system", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(snap.Findings))
+	}
+	if snap.Findings[0].Namespace != "kube-system" {
+		t.Errorf("namespace = %q, want kube-system", snap.Findings[0].Namespace)
+	}
+}
+
+func TestSnapshotHandler_MultipleFiltersAND(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Namespace: "default", Name: "a", ProbeOK: true},
+		{Source: store.SourceWebhook, Severity: store.SeverityWarn, Namespace: "default", Name: "b", ProbeOK: true},
+		{Source: store.SourceExternal, Severity: store.SeverityCritical, Namespace: "", Name: "c", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot?source=k8s.webhook&severity=critical", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 1 {
+		t.Fatalf("findings = %d, want 1", len(snap.Findings))
+	}
+	if snap.Findings[0].Name != "a" {
+		t.Errorf("finding name = %q, want %q", snap.Findings[0].Name, "a")
+	}
+}
+
+func TestSnapshotHandler_UnknownValueReturnsEmpty(t *testing.T) {
+	findings := []store.CertFinding{
+		{Source: store.SourceWebhook, Severity: store.SeverityCritical, Name: "a", ProbeOK: true},
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/snapshot?severity=nonexistent", http.NoBody)
+	w := httptest.NewRecorder()
+	SnapshotHandler(fixedSnapshot(findings))(w, req)
+
+	var snap store.Snapshot
+	if err := json.NewDecoder(w.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(snap.Findings) != 0 {
+		t.Errorf("findings = %d, want 0", len(snap.Findings))
+	}
+}

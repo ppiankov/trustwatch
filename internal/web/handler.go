@@ -41,15 +41,18 @@ func UIHandler(getSnapshot SnapshotFunc, opts ...func(*UIConfig)) http.HandlerFu
 	for _, o := range opts {
 		o(cfg)
 	}
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		snap := getSnapshot()
 		now := time.Now()
 
+		// Apply query param filters first
+		filtered := filterFindings(snap.Findings, r)
+
 		// Filter to critical and warn only (info is inventory noise)
 		var problems []store.CertFinding
-		for i := range snap.Findings {
-			if snap.Findings[i].Severity == store.SeverityCritical || snap.Findings[i].Severity == store.SeverityWarn {
-				problems = append(problems, snap.Findings[i])
+		for i := range filtered {
+			if filtered[i].Severity == store.SeverityCritical || filtered[i].Severity == store.SeverityWarn {
+				problems = append(problems, filtered[i])
 			}
 		}
 
@@ -117,9 +120,11 @@ func UIHandler(getSnapshot SnapshotFunc, opts ...func(*UIConfig)) http.HandlerFu
 }
 
 // SnapshotHandler returns the full snapshot as JSON.
+// Accepts optional query params: ?source=, ?severity=, ?namespace= (comma-separated).
 func SnapshotHandler(getSnapshot SnapshotFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
 		snap := getSnapshot()
+		snap.Findings = filterFindings(snap.Findings, r)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(snap); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -232,4 +237,56 @@ func formatNotAfter(t time.Time) string {
 		return ""
 	}
 	return t.Format("2006-01-02 15:04 UTC")
+}
+
+// filterFindings applies ?source=, ?severity=, ?namespace= query param filters as AND conditions.
+// Multiple values within a param are comma-separated and OR'd.
+func filterFindings(findings []store.CertFinding, r *http.Request) []store.CertFinding {
+	q := r.URL.Query()
+	sources := splitParam(q.Get("source"))
+	severities := splitParam(q.Get("severity"))
+	namespaces := splitParam(q.Get("namespace"))
+
+	if len(sources) == 0 && len(severities) == 0 && len(namespaces) == 0 {
+		return findings
+	}
+
+	filtered := make([]store.CertFinding, 0, len(findings))
+	for i := range findings {
+		f := &findings[i]
+		if len(sources) > 0 && !contains(sources, string(f.Source)) {
+			continue
+		}
+		if len(severities) > 0 && !contains(severities, string(f.Severity)) {
+			continue
+		}
+		if len(namespaces) > 0 && !contains(namespaces, f.Namespace) {
+			continue
+		}
+		filtered = append(filtered, *f)
+	}
+	return filtered
+}
+
+func splitParam(val string) []string {
+	if val == "" {
+		return nil
+	}
+	parts := strings.Split(val, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+func contains(set []string, val string) bool {
+	for _, s := range set {
+		if s == val {
+			return true
+		}
+	}
+	return false
 }
