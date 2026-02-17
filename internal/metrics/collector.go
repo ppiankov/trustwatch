@@ -12,14 +12,15 @@ import (
 
 // Collector translates a snapshot into Prometheus gauge values.
 type Collector struct {
-	certNotAfter    *prometheus.GaugeVec
-	certExpiresIn   *prometheus.GaugeVec
-	probeSuccess    *prometheus.GaugeVec
-	findingsTotal   *prometheus.GaugeVec
-	discoveryErrors *prometheus.GaugeVec
-	chainErrors     *prometheus.GaugeVec
-	scanDuration    prometheus.Gauge
-	mu              sync.Mutex
+	certNotAfter      *prometheus.GaugeVec
+	certExpiresIn     *prometheus.GaugeVec
+	probeSuccess      *prometheus.GaugeVec
+	findingsTotal     *prometheus.GaugeVec
+	discoveryErrors   *prometheus.GaugeVec
+	chainErrors       *prometheus.GaugeVec
+	scanDuration      prometheus.Gauge
+	lastScanTimestamp prometheus.Gauge
+	mu                sync.Mutex
 }
 
 // NewCollector creates and registers metrics on the given registerer.
@@ -49,6 +50,12 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 			Help:      "Duration of the last discovery scan in seconds.",
 		}),
 
+		lastScanTimestamp: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "trustwatch",
+			Name:      "last_scan_timestamp_seconds",
+			Help:      "Unix timestamp of the last completed scan.",
+		}),
+
 		findingsTotal: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: "trustwatch",
 			Name:      "findings_total",
@@ -72,6 +79,7 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 	reg.MustRegister(c.certExpiresIn)
 	reg.MustRegister(c.probeSuccess)
 	reg.MustRegister(c.scanDuration)
+	reg.MustRegister(c.lastScanTimestamp)
 	reg.MustRegister(c.findingsTotal)
 	reg.MustRegister(c.discoveryErrors)
 	reg.MustRegister(c.chainErrors)
@@ -92,6 +100,9 @@ func (c *Collector) Update(snap store.Snapshot, scanDuration time.Duration) {
 	c.chainErrors.Reset()
 
 	c.scanDuration.Set(scanDuration.Seconds())
+	if !snap.At.IsZero() {
+		c.lastScanTimestamp.Set(float64(snap.At.Unix()))
+	}
 
 	counts := map[store.Severity]int{
 		store.SeverityInfo:     0,

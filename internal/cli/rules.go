@@ -154,4 +154,12 @@ spec:
           annotations:
             summary: "Discovery errors from source: {{"{{"}} $labels.source {{"}}"}}"
             description: "trustwatch discoverer {{"{{"}} $labels.source {{"}}"}} has been producing errors for 15 minutes."
+        - alert: TrustwatchScanStale
+          expr: time() - trustwatch_last_scan_timestamp_seconds > 600
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "trustwatch scan is stale"
+            description: "trustwatch has not completed a scan in over 10 minutes. Check pod health and logs."
 `

@@ -10,6 +10,21 @@ import (
 	"github.com/ppiankov/trustwatch/internal/store"
 )
 
+func TestUpdate_LastScanTimestamp(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c := NewCollector(reg)
+
+	now := time.Date(2025, 6, 1, 12, 0, 0, 0, time.UTC)
+	snap := store.Snapshot{At: now}
+	c.Update(snap, time.Second)
+
+	got := testutil.ToFloat64(c.lastScanTimestamp)
+	want := float64(now.Unix())
+	if got != want {
+		t.Errorf("last_scan_timestamp_seconds = %v, want %v", got, want)
+	}
+}
+
 func TestUpdate_EmptySnapshot(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	c := NewCollector(reg)
