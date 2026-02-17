@@ -27,6 +27,7 @@ import (
 	"github.com/ppiankov/trustwatch/internal/monitor"
 	"github.com/ppiankov/trustwatch/internal/policy"
 	"github.com/ppiankov/trustwatch/internal/probe"
+	"github.com/ppiankov/trustwatch/internal/report"
 	"github.com/ppiankov/trustwatch/internal/revocation"
 	"github.com/ppiankov/trustwatch/internal/store"
 	"github.com/ppiankov/trustwatch/internal/telemetry"
@@ -387,8 +388,8 @@ func runNow(cmd *cobra.Command, _ []string) error {
 	outputFlag, _ := cmd.Flags().GetString("output") //nolint:errcheck // flag registered above
 	quiet, _ := cmd.Flags().GetBool("quiet")         //nolint:errcheck // flag registered above
 
-	if outputFlag != "" && outputFlag != "json" && outputFlag != "table" {
-		return fmt.Errorf("invalid --output value %q: must be json or table", outputFlag)
+	if outputFlag != "" && outputFlag != "json" && outputFlag != "table" && outputFlag != "csv" {
+		return fmt.Errorf("invalid --output value %q: must be json, table, or csv", outputFlag)
 	}
 
 	if !quiet {
@@ -396,6 +397,10 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		case "json":
 			if err := monitor.WriteJSON(os.Stdout, snap, exitCode); err != nil {
 				return fmt.Errorf("writing JSON output: %w", err)
+			}
+		case "csv":
+			if err := report.WriteCSV(os.Stdout, snap.Findings); err != nil {
+				return fmt.Errorf("writing CSV output: %w", err)
 			}
 		case "table":
 			fmt.Print(monitor.PlainText(snap))
