@@ -311,6 +311,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 	mux.HandleFunc("/", web.UIHandler(getSnapshot, uiOpts...))
 	mux.HandleFunc("/healthz", web.HealthzHandler(getSnapshot, 2*cfg.RefreshEvery))
+	mux.HandleFunc("/readyz", web.ReadyzHandler(getSnapshot, 2*cfg.RefreshEvery))
 	mux.HandleFunc("/api/v1/snapshot", web.SnapshotHandler(getSnapshot))
 	if histStore != nil {
 		mux.HandleFunc("/api/v1/history", web.HistoryHandler(histStore))
