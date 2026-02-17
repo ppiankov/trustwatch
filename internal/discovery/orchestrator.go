@@ -27,6 +27,7 @@ const FindingManagedExpiry = "MANAGED_EXPIRY"
 type Orchestrator struct {
 	tracer           trace.Tracer
 	nowFn            func() time.Time
+	discoverTimer    func(string, time.Duration)
 	crlCache         *revocation.CRLCache
 	ctClient         *ct.Client
 	prevSnap         *store.Snapshot
@@ -68,6 +69,13 @@ func WithCTCheck(domains, allowedIssuers []string, client *ct.Client) Orchestrat
 func WithDriftDetection(prev *store.Snapshot) OrchestratorOption {
 	return func(o *Orchestrator) {
 		o.prevSnap = prev
+	}
+}
+
+// WithDiscoverTimer sets a callback invoked after each discoverer completes with its name and duration.
+func WithDiscoverTimer(fn func(string, time.Duration)) OrchestratorOption {
+	return func(o *Orchestrator) {
+		o.discoverTimer = fn
 	}
 }
 
@@ -119,7 +127,11 @@ func (o *Orchestrator) Run() store.Snapshot {
 				_, span := o.tracer.Start(ctx, "discover."+d.Name())
 				defer span.End()
 			}
+			start := time.Now()
 			findings, err := d.Discover()
+			if o.discoverTimer != nil {
+				o.discoverTimer(d.Name(), time.Since(start))
+			}
 			ch <- result{name: d.Name(), findings: findings, err: err}
 		}(d)
 	}

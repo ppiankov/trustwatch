@@ -12,15 +12,16 @@ import (
 
 // Collector translates a snapshot into Prometheus gauge values.
 type Collector struct {
-	certNotAfter      *prometheus.GaugeVec
-	certExpiresIn     *prometheus.GaugeVec
-	probeSuccess      *prometheus.GaugeVec
-	findingsTotal     *prometheus.GaugeVec
-	discoveryErrors   *prometheus.GaugeVec
-	chainErrors       *prometheus.GaugeVec
-	scanDuration      prometheus.Gauge
-	lastScanTimestamp prometheus.Gauge
-	mu                sync.Mutex
+	certNotAfter       *prometheus.GaugeVec
+	certExpiresIn      *prometheus.GaugeVec
+	probeSuccess       *prometheus.GaugeVec
+	findingsTotal      *prometheus.GaugeVec
+	discoveryErrors    *prometheus.GaugeVec
+	chainErrors        *prometheus.GaugeVec
+	discovererDuration *prometheus.HistogramVec
+	scanDuration       prometheus.Gauge
+	lastScanTimestamp  prometheus.Gauge
+	mu                 sync.Mutex
 }
 
 // NewCollector creates and registers metrics on the given registerer.
@@ -73,6 +74,13 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 			Name:      "chain_errors_total",
 			Help:      "Number of findings with chain validation errors by source.",
 		}, []string{"source"}),
+
+		discovererDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: "trustwatch",
+			Name:      "discoverer_duration_seconds",
+			Help:      "Duration of each discoverer's Discover() call in seconds.",
+			Buckets:   []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		}, []string{"source"}),
 	}
 
 	reg.MustRegister(c.certNotAfter)
@@ -83,8 +91,14 @@ func NewCollector(reg prometheus.Registerer) *Collector {
 	reg.MustRegister(c.findingsTotal)
 	reg.MustRegister(c.discoveryErrors)
 	reg.MustRegister(c.chainErrors)
+	reg.MustRegister(c.discovererDuration)
 
 	return c
+}
+
+// ObserveDiscovererDuration records the wall-clock time for a single discoverer run.
+func (c *Collector) ObserveDiscovererDuration(source string, d time.Duration) {
+	c.discovererDuration.WithLabelValues(source).Observe(d.Seconds())
 }
 
 // Update replaces all metric values from the given snapshot.
