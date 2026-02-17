@@ -102,8 +102,8 @@ func NewOrchestrator(discoverers []Discoverer, warnBefore, critBefore time.Durat
 
 // Run executes all discoverers concurrently and returns a classified snapshot.
 // Individual discoverer failures are logged but do not abort the run.
-func (o *Orchestrator) Run() store.Snapshot {
-	ctx := context.Background()
+// If ctx is canceled, in-flight discoverers that haven't returned are recorded as errors.
+func (o *Orchestrator) Run(ctx context.Context) store.Snapshot {
 	if o.tracer != nil {
 		var span trace.Span
 		ctx, span = o.tracer.Start(ctx, "discovery.run")
@@ -131,6 +131,11 @@ func (o *Orchestrator) Run() store.Snapshot {
 			findings, err := d.Discover()
 			if o.discoverTimer != nil {
 				o.discoverTimer(d.Name(), time.Since(start))
+			}
+			// Check context before sending — if canceled, report timeout
+			if ctx.Err() != nil {
+				ch <- result{name: d.Name(), err: fmt.Errorf("scan timeout: %w", ctx.Err())}
+				return
 			}
 			ch <- result{name: d.Name(), findings: findings, err: err}
 		}(d)

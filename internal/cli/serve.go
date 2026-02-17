@@ -87,6 +87,7 @@ func init() {
 	serveCmd.Flags().StringSlice("ct-domains", nil, "Domains to monitor in CT logs")
 	serveCmd.Flags().StringSlice("ct-allowed-issuers", nil, "Expected CA issuers (others flagged as rogue)")
 	serveCmd.Flags().Bool("detect-drift", false, "Detect certificate changes between consecutive scans")
+	serveCmd.Flags().Duration("scan-timeout", 0, "Scan timeout (default: refresh interval minus 10s, min 30s)")
 }
 
 func runServe(cmd *cobra.Command, _ []string) error {
@@ -330,10 +331,21 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Compute scan timeout
+	scanTimeout, _ := cmd.Flags().GetDuration("scan-timeout") //nolint:errcheck // flag registered above
+	if scanTimeout <= 0 {
+		scanTimeout = cfg.RefreshEvery - 10*time.Second
+		if scanTimeout < 30*time.Second {
+			scanTimeout = 30 * time.Second
+		}
+	}
+
 	// Background scan loop
 	scan := func() {
 		start := time.Now()
-		snap := orch.Run()
+		scanCtx, scanCancel := context.WithTimeout(ctx, scanTimeout)
+		defer scanCancel()
+		snap := orch.Run(scanCtx)
 
 		// Detect certificate drift vs previous scan
 		if detectDrift {
