@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-02-20
+
+### Added
+- TLS posture audit: detects weak TLS versions (1.0/1.1) and weak cipher suites as findings
+- kubectl plugin: `kubectl-trustwatch` symlink via Homebrew and krew manifest
+- OCSP and CRL revocation checking (`--check-revocation`) with in-memory CRL cache
+- `trustwatch check` CI/CD gate command with `--max-severity` and `--deploy-window` flags
+- `trustwatch impact` rotation impact analysis: shows blast radius for CA rotation by issuer or serial
+- Certificate Transparency log monitoring (`--ct-domains`) with `CT_UNKNOWN_CERT` and `CT_ROGUE_ISSUER` findings
+- Rotation-aware expiry suppression: healthy cert-manager renewals downgraded to info (`MANAGED_EXPIRY`)
+- Excessive rotation frequency detection (`EXCESSIVE_ROTATION`) with role-based thresholds
+- Remediation playbooks: actionable fix suggestions attached to every non-info finding
+- PagerDuty integration: trigger incidents for critical findings, auto-resolve when cleared
+- `trustwatch report` command: self-contained HTML compliance report
+- Certificate drift detection (`--detect-drift`): flags new/gone certs, serial and issuer changes across scans
+- Probe retry with exponential backoff (2 retries, connection errors only)
+- Grafana annotation push notifier for scan events on dashboards
+- `trustwatch_last_scan_timestamp_seconds` gauge and `TrustwatchScanStale` alert rule
+- `trustwatch_discoverer_duration_seconds` histogram with `source` label for per-discoverer latency
+- CSV output format (`--output csv`) on `now` and `check` commands
+- `trustwatch completion` command for bash, zsh, fish, and PowerShell
+- `trustwatch validate` config validation subcommand (no cluster connection required)
+- Server-side filtering on `/api/v1/snapshot`: `?source=`, `?severity=`, `?namespace=` query params
+- `trustwatch baseline save` and `trustwatch baseline check` for known-good certificate inventory
+- Scan context timeout (`--scan-timeout`) prevents runaway discoverers from blocking the scan loop
+- `/readyz` JSON readiness endpoint with scan age, discovery errors, and findings count
+- Helm: test pod (`helm test`) validating `/readyz` endpoint
+- Helm: `topologySpreadConstraints` support in deployment template
+
+## [0.2.2] - 2026-02-16
+
+### Fixed
+- Suppress false positive lint error on metrics package name
+
+## [0.2.1] - 2026-02-15
+
+### Fixed
+- Align version output format
+- Add explicit version to Homebrew formula
+- Strip v prefix from version in release ldflags
+
 ## [0.2.0] - 2026-02-15
 
 ### Added
