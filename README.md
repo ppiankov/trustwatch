@@ -25,6 +25,14 @@ trustwatch now --context prod
 trustwatch serve --config /etc/trustwatch/config.yaml
 ```
 
+### Agent Integration
+
+trustwatch is designed to be used by autonomous agents without plugins or SDKs. Single binary, deterministic output, structured JSON, bounded jobs.
+
+Agents: read [`SKILL.md`](SKILL.md) for commands, flags, JSON output structure, and parsing examples.
+
+Key pattern for agents: `trustwatch now --context prod --output json` then parse `.snapshot.findings[]` for certificate issues.
+
 ### Container Image
 
 ```bash
