@@ -15,7 +15,8 @@ const (
 	linkerdTrustRootsConfigMap = "linkerd-identity-trust-roots"
 	linkerdTrustRootsKey       = "ca-bundle.crt"
 	linkerdIssuerSecret        = "linkerd-identity-issuer"
-	linkerdIssuerKey           = "tls.crt"
+	linkerdIssuerKeyDefault    = "crt.pem"
+	linkerdIssuerKeyFallback   = "tls.crt"
 )
 
 // LinkerdDiscoverer finds Linkerd identity trust anchors and issuer certificates.
@@ -114,10 +115,14 @@ func (d *LinkerdDiscoverer) discoverIssuer(ctx context.Context) (*store.CertFind
 		Notes:     "identity issuer",
 	}
 
-	pemData, ok := secret.Data[linkerdIssuerKey]
+	pemData, ok := secret.Data[linkerdIssuerKeyDefault]
+	if !ok {
+		// Fall back to tls.crt for kubernetes.io/tls type secrets
+		pemData, ok = secret.Data[linkerdIssuerKeyFallback]
+	}
 	if !ok {
 		finding.ProbeOK = false
-		finding.ProbeErr = fmt.Sprintf("missing key %s", linkerdIssuerKey)
+		finding.ProbeErr = fmt.Sprintf("missing key %s or %s", linkerdIssuerKeyDefault, linkerdIssuerKeyFallback)
 		return &finding, nil
 	}
 

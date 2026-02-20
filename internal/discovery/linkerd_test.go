@@ -55,7 +55,7 @@ func TestLinkerdDiscoverer_BothPresent(t *testing.T) {
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: linkerdIssuerSecret, Namespace: linkerdNamespace},
-			Data:       map[string][]byte{linkerdIssuerKey: issuerPEM},
+			Data:       map[string][]byte{linkerdIssuerKeyDefault: issuerPEM},
 		},
 	}
 
@@ -120,7 +120,7 @@ func TestLinkerdDiscoverer_TrustRootsMissingKey(t *testing.T) {
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: linkerdIssuerSecret, Namespace: linkerdNamespace},
-			Data:       map[string][]byte{linkerdIssuerKey: testCert(t, time.Now().Add(time.Hour), nil)},
+			Data:       map[string][]byte{linkerdIssuerKeyDefault: testCert(t, time.Now().Add(time.Hour), nil)},
 		},
 	}
 
@@ -182,7 +182,7 @@ func TestLinkerdDiscoverer_MalformedPEM(t *testing.T) {
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: linkerdIssuerSecret, Namespace: linkerdNamespace},
-			Data:       map[string][]byte{linkerdIssuerKey: []byte("not-valid-pem")},
+			Data:       map[string][]byte{linkerdIssuerKeyDefault: []byte("not-valid-pem")},
 		},
 	}
 
@@ -205,6 +205,39 @@ func TestLinkerdDiscoverer_MalformedPEM(t *testing.T) {
 	}
 }
 
+func TestLinkerdDiscoverer_IssuerFallbackTLSCrt(t *testing.T) {
+	issuerNotAfter := time.Now().Add(30 * 24 * time.Hour).Truncate(time.Second)
+
+	objs := []runtime.Object{
+		linkerdNamespaceObj(),
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: linkerdTrustRootsConfigMap, Namespace: linkerdNamespace},
+			Data:       map[string]string{linkerdTrustRootsKey: string(testCert(t, time.Now().Add(time.Hour), nil))},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: linkerdIssuerSecret, Namespace: linkerdNamespace},
+			Data:       map[string][]byte{linkerdIssuerKeyFallback: testCert(t, issuerNotAfter, nil)},
+		},
+	}
+
+	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 2 {
+		t.Fatalf("expected 2 findings, got %d", len(findings))
+	}
+
+	iss := findings[1]
+	if !iss.ProbeOK {
+		t.Errorf("issuer: expected ProbeOK=true with tls.crt fallback, got error: %s", iss.ProbeErr)
+	}
+	if !iss.NotAfter.Equal(issuerNotAfter) {
+		t.Errorf("issuer: expected NotAfter %v, got %v", issuerNotAfter, iss.NotAfter)
+	}
+}
+
 func TestLinkerdDiscoverer_NamespaceAllFields(t *testing.T) {
 	objs := []runtime.Object{
 		linkerdNamespaceObj(),
@@ -214,7 +247,7 @@ func TestLinkerdDiscoverer_NamespaceAllFields(t *testing.T) {
 		},
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: linkerdIssuerSecret, Namespace: linkerdNamespace},
-			Data:       map[string][]byte{linkerdIssuerKey: testCert(t, time.Now().Add(time.Hour), nil)},
+			Data:       map[string][]byte{linkerdIssuerKeyDefault: testCert(t, time.Now().Add(time.Hour), nil)},
 		},
 	}
 
