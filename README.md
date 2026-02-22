@@ -102,6 +102,24 @@ cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig
 - Not a compliance auditor — it reports operational risk, not regulatory posture
 - Not a trust graph visualizer — it shows problems, not topology
 
+## Project Status
+
+**Status: Beta** · **v0.3.0** · Pre-1.0
+
+| Milestone | Status |
+|-----------|--------|
+| Core functionality | Complete |
+| Test coverage >85% | Complete |
+| Security audit | Complete |
+| golangci-lint config | Complete |
+| CI pipeline (test/lint/scan) | Complete |
+| Homebrew distribution | Complete |
+| Safety model documented | Complete |
+| API stability guarantees | Partial |
+| v1.0 release | Planned |
+
+Pre-1.0: annotation keys (`trustwatch.dev/*`) are stable from v0.2+. Exit codes stable from v0.1+. Prometheus metric names may change before v1.0.
+
 ## Discovery Sources
 
 ### Auto-Critical (always discovered)
