@@ -1,6 +1,7 @@
 [![CI](https://github.com/ppiankov/trustwatch/actions/workflows/ci.yml/badge.svg)](https://github.com/ppiankov/trustwatch/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ppiankov/trustwatch)](https://goreportcard.com/report/github.com/ppiankov/trustwatch)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![ANCC](https://img.shields.io/badge/ANCC-compliant-brightgreen)](https://ancc.dev)
 
 # trustwatch
 
