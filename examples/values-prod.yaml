@@ -1,0 +1,36 @@
+# trustwatch production values — Prometheus + external nginx LB monitoring
+#
+# Install:
+#   helm install trustwatch charts/trustwatch -n trustwatch --create-namespace -f examples/values-prod.yaml
+#
+# Upgrade:
+#   helm upgrade trustwatch charts/trustwatch -n trustwatch -f examples/values-prod.yaml
+
+image:
+  tag: "0.3.1"
+
+config:
+  refreshEvery: "2m"
+  warnBefore: "720h"       # 30 days
+  critBefore: "336h"       # 14 days
+
+  # External nginx LB nodes — both checked independently so you catch
+  # renewal failures or copy-sync issues between keepalived peers.
+  external:
+    - url: "https://10.0.0.1:443"    # LB node 1
+    - url: "https://10.0.0.2:443"    # LB node 2
+
+# Prometheus Operator integration
+serviceMonitor:
+  enabled: true
+  interval: 30s
+
+# Alert rules — fires when certs approach expiry or scans go stale
+prometheusRule:
+  enabled: true
+  warnSeconds: 2592000    # 30 days
+  critSeconds: 1209600    # 14 days
+
+# Grafana dashboard auto-import via sidecar
+grafanaDashboard:
+  enabled: true
