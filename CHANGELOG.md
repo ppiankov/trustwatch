@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-02-24
+
+### Fixed
+- Add `get` verb to ClusterRole for secrets and configmaps (fixes probe failures on ingress TLS secrets)
+- Add `release: prometheus-operator` label to ServiceMonitor and PrometheusRule defaults
+
+### Added
+- Example production values file (`examples/values-prod.yaml`) with external LB monitoring
+- Troubleshooting section in README covering RBAC and chain validation issues
+- Prometheus Operator integration guide in README
+
+## [0.3.1] - 2026-02-21
+
+### Fixed
+- Handle Linkerd identity issuer secrets using `crt.pem` key (Opaque type) with `tls.crt` fallback
+
 ## [0.3.0] - 2026-02-20
 
 ### Added
