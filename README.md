@@ -105,7 +105,7 @@ cosign verify-blob --certificate checksums.txt.pem --signature checksums.txt.sig
 
 ## Project Status
 
-**Status: Beta** · **v0.3.0** · Pre-1.0
+**Status: Beta** · **v0.3.1** · Pre-1.0
 
 | Milestone | Status |
 |-----------|--------|
@@ -378,6 +378,67 @@ trustwatch_discovery_errors_total{source}
 trustwatch_chain_errors_total{source}
 ```
 
+### Prometheus Operator Integration
+
+When using Prometheus Operator, the ServiceMonitor and PrometheusRule must carry the label your Prometheus instance selects on. Check with:
+
+```bash
+kubectl get prometheus -A -o jsonpath='{.items[*].spec.serviceMonitorSelector}'
+```
+
+A common setup requires `release: prometheus-operator`:
+
+```yaml
+serviceMonitor:
+  enabled: true
+  labels:
+    release: prometheus-operator
+prometheusRule:
+  enabled: true
+  labels:
+    release: prometheus-operator
+```
+
+See `examples/values-prod.yaml` for a complete production values file.
+
+### Alert Monitoring with infranow
+
+[infranow](https://github.com/ppiankov/infranow) can monitor trustwatch alerts directly from Prometheus. Point it at your Prometheus service and it will surface firing alerts for expiring certificates, probe failures, and scan staleness:
+
+```bash
+infranow monitor --k8s-service prometheus-operated \
+  --k8s-namespace monitoring --k8s-remote-port 9090
+```
+
+### Troubleshooting
+
+**`TrustwatchProbeFailed` alerts on Ingress TLS secrets**
+
+If trustwatch reports probe failures for Ingress-referenced TLS secrets, the service account likely lacks `get` permission on secrets. Verify:
+
+```bash
+kubectl auth can-i get secrets --as system:serviceaccount:trustwatch:trustwatch -n <namespace>
+```
+
+The Helm chart ClusterRole includes `get`, `list`, and `watch` for secrets. If namespace-level RBAC policies restrict access, create a RoleBinding in the affected namespace:
+
+```bash
+kubectl create rolebinding trustwatch-secrets -n <namespace> \
+  --clusterrole=trustwatch --serviceaccount=trustwatch:trustwatch
+```
+
+**Chain validation warnings on external targets probed by IP**
+
+When external targets are configured by IP address, chain validation reports "certificate does not cover hostname" because the cert's SANs don't include the IP. Add `sni` to match the certificate's hostname:
+
+```yaml
+external:
+  - url: "https://10.0.0.1:443"
+    sni: "api.example.com"
+```
+
+The "certificate signed by unknown authority" warning can appear when the server doesn't send the full intermediate chain. Fix the server's TLS config to include intermediates.
+
 ## TrustPolicy CRD
 
 Declarative policy rules via `trustwatch.dev/v1alpha1` TrustPolicy resources:
@@ -498,7 +559,7 @@ trustwatch needs **read-only** cluster-wide access. The Helm chart creates a Clu
 
 | API Group | Resources | Verbs |
 |-----------|-----------|-------|
-| `""` (core) | secrets, services, configmaps, namespaces | list, watch |
+| `""` (core) | secrets, services, configmaps, namespaces | get, list, watch |
 | `admissionregistration.k8s.io` | validatingwebhookconfigurations, mutatingwebhookconfigurations | list, watch |
 | `apiregistration.k8s.io` | apiservices | list, watch |
 | `apiextensions.k8s.io` | customresourcedefinitions | get, create, update |
