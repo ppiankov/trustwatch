@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.3] - 2026-02-24
+
+### Improved
+- Clearer error message when ingress references a TLS secret that does not exist (SECRET_NOT_FOUND finding type)
+- Remediation playbook entry for missing TLS secrets
+- Missing secret findings now report as warn severity instead of info
+
 ## [0.3.2] - 2026-02-24
 
 ### Fixed

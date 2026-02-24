@@ -77,4 +77,7 @@ var findingTypePlaybook = map[string]string{
 
 	"POLICY_VIOLATION": "Certificate violates a TrustPolicy rule. Review the policy " +
 		"and update the certificate to comply (e.g., increase key size, switch issuer, remove self-signed).",
+
+	"SECRET_NOT_FOUND": "Ingress references a TLS secret that does not exist. " +
+		"Create the missing secret, or remove the secretName from the ingress TLS stanza if TLS is not needed.",
 }

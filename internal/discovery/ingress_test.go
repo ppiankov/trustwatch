@@ -128,6 +128,16 @@ func TestIngressDiscoverer_SecretNotFound(t *testing.T) {
 	if f.ProbeErr == "" {
 		t.Error("expected non-empty ProbeErr")
 	}
+	if f.FindingType != "SECRET_NOT_FOUND" {
+		t.Errorf("expected findingType %q, got %q", "SECRET_NOT_FOUND", f.FindingType)
+	}
+	if f.Severity != store.SeverityWarn {
+		t.Errorf("expected severity %q, got %q", store.SeverityWarn, f.Severity)
+	}
+	wantErr := `ingress web/orphan-ing references TLS secret "missing-secret" which does not exist in namespace web`
+	if f.ProbeErr != wantErr {
+		t.Errorf("expected ProbeErr %q, got %q", wantErr, f.ProbeErr)
+	}
 	if f.Source != store.SourceIngressTLS {
 		t.Errorf("expected source %q, got %q", store.SourceIngressTLS, f.Source)
 	}

@@ -6,6 +6,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
@@ -79,7 +80,14 @@ func (d *IngressDiscoverer) findingFromIngressTLS(ctx context.Context, ing *netw
 	secret, err := d.client.CoreV1().Secrets(ing.Namespace).Get(ctx, tls.SecretName, metav1.GetOptions{})
 	if err != nil {
 		finding.ProbeOK = false
-		finding.ProbeErr = fmt.Sprintf("getting secret %s/%s: %s", ing.Namespace, tls.SecretName, err)
+		if apierrors.IsNotFound(err) {
+			finding.FindingType = "SECRET_NOT_FOUND"
+			finding.Severity = store.SeverityWarn
+			finding.ProbeErr = fmt.Sprintf("ingress %s/%s references TLS secret %q which does not exist in namespace %s",
+				ing.Namespace, ing.Name, tls.SecretName, ing.Namespace)
+		} else {
+			finding.ProbeErr = fmt.Sprintf("getting secret %s/%s: %s", ing.Namespace, tls.SecretName, err)
+		}
 		return finding
 	}
 
