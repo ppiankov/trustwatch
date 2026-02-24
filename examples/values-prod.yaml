@@ -24,10 +24,14 @@ config:
 serviceMonitor:
   enabled: true
   interval: 30s
+  labels:
+    release: prometheus-operator
 
 # Alert rules — fires when certs approach expiry or scans go stale
 prometheusRule:
   enabled: true
+  labels:
+    release: prometheus-operator
   warnSeconds: 2592000    # 30 days
   critSeconds: 1209600    # 14 days
 
