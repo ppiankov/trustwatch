@@ -76,6 +76,7 @@ func (d *APIServiceDiscoverer) Discover() ([]store.CertFinding, error) {
 				Name:      apiServices.Items[i].Name,
 				Target:    fmt.Sprintf("%s.%s.svc:%d", svc.Name, svc.Namespace, port),
 				Notes:     "insecureSkipTLSVerify=true",
+				ProbeOK:   true,
 			})
 			continue
 		}

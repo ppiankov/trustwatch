@@ -257,6 +257,9 @@ func TestAPIServiceDiscoverer_InsecureSkipTLSVerify(t *testing.T) {
 	if f.Notes != "insecureSkipTLSVerify=true" {
 		t.Errorf("expected notes %q, got %q", "insecureSkipTLSVerify=true", f.Notes)
 	}
+	if !f.ProbeOK {
+		t.Error("expected ProbeOK=true for insecureSkipTLSVerify (no TLS to validate)")
+	}
 	if f.Target != "metrics-server.kube-system.svc:443" {
 		t.Errorf("expected target %q, got %q", "metrics-server.kube-system.svc:443", f.Target)
 	}

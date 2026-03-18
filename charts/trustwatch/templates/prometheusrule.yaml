@@ -37,7 +37,7 @@ spec:
             summary: "Certificate expired: {{`{{ $labels.name }}`}} in {{`{{ $labels.namespace }}`}}"
             description: "Certificate {{`{{ $labels.name }}`}} (source: {{`{{ $labels.source }}`}}) in namespace {{`{{ $labels.namespace }}`}} has expired."
         - alert: TrustwatchProbeFailed
-          expr: trustwatch_probe_success == 0 unless on(name) (trustwatch_probe_success{source="k8s.apiservice",namespace=""})
+          expr: trustwatch_probe_success == 0
           for: 10m
           labels:
             severity: warning
