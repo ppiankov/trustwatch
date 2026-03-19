@@ -189,6 +189,37 @@ external:
   - url: "tcp://10.0.8.10:9443?sni=api.internal"
 ```
 
+### Helm External Targets
+
+Pass external targets through Helm values to monitor TLS endpoints outside the cluster (load balancers, APIs, databases, IdPs):
+
+```yaml
+# values-prod.yaml
+config:
+  external:
+    - url: "https://api.example.com:443"
+    - url: "https://vault.internal:8200"
+    - url: "https://10.0.0.1:443"
+      sni: "lb.example.com"   # SNI override for IP-based targets
+```
+
+```bash
+helm upgrade trustwatch charts/trustwatch -n trustwatch-system -f values-prod.yaml \
+  --set serviceMonitor.enabled=true \
+  --set serviceMonitor.labels.release=prometheus-operator \
+  --set prometheusRule.enabled=true \
+  --set prometheusRule.labels.release=prometheus-operator
+```
+
+Or inline for a single target:
+
+```bash
+helm upgrade trustwatch charts/trustwatch -n trustwatch-system \
+  --set 'config.external[0].url=https://api.example.com:443'
+```
+
+External targets are probed on every scan cycle and emit `trustwatch_cert_expires_in_seconds{source="external"}` and `trustwatch_probe_success{source="external"}` metrics. The same `TrustwatchCertExpiringSoon` and `TrustwatchProbeFailed` alerts apply.
+
 ## Modes
 
 ### `trustwatch now` — Ad-hoc TUI
