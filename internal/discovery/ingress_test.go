@@ -206,6 +206,48 @@ func TestIngressDiscoverer_WrongSecretType(t *testing.T) {
 	}
 }
 
+func TestIngressDiscoverer_OpaqueSecretWithTLSCrt(t *testing.T) {
+	notAfter := time.Now().Add(30 * 24 * time.Hour).Truncate(time.Second)
+	pemData := testCert(t, notAfter, []string{"grpc.example.com"})
+
+	objs := []runtime.Object{
+		&networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{Name: "grpc-ing", Namespace: "default"},
+			Spec: networkingv1.IngressSpec{
+				TLS: []networkingv1.IngressTLS{
+					{Hosts: []string{"grpc.example.com"}, SecretName: "grpc-cert"},
+				},
+			},
+		},
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "grpc-cert", Namespace: "default"},
+			Type:       corev1.SecretTypeOpaque,
+			Data: map[string][]byte{
+				"tls.crt": pemData,
+				"tls.key": []byte("fake-key"),
+				"ca.crt":  []byte("fake-ca"),
+			},
+		},
+	}
+
+	d := NewIngressDiscoverer(fake.NewClientset(objs...))
+	findings, err := d.Discover()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(findings) != 1 {
+		t.Fatalf("expected 1 finding, got %d", len(findings))
+	}
+
+	f := findings[0]
+	if !f.ProbeOK {
+		t.Errorf("expected ProbeOK=true for Opaque secret with tls.crt, got error: %s", f.ProbeErr)
+	}
+	if !f.NotAfter.Equal(notAfter) {
+		t.Errorf("expected NotAfter %v, got %v", notAfter, f.NotAfter)
+	}
+}
+
 func TestIngressDiscoverer_MalformedPEM(t *testing.T) {
 	objs := []runtime.Object{
 		&networkingv1.Ingress{
@@ -276,8 +318,8 @@ func TestIngressDiscoverer_MissingTLSCrtKey(t *testing.T) {
 	if f.ProbeOK {
 		t.Error("expected ProbeOK=false for missing tls.crt")
 	}
-	if f.ProbeErr != errMissingTLSCrt {
-		t.Errorf("expected ProbeErr %q, got %q", errMissingTLSCrt, f.ProbeErr)
+	if f.ProbeErr == "" {
+		t.Error("expected non-empty ProbeErr for missing tls.crt")
 	}
 }
 

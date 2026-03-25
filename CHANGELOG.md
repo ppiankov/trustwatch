@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.5] - 2026-03-25
+
+### Fixed
+- Accept Opaque secrets with `tls.crt` key in ingress TLS discoverer (not only `kubernetes.io/tls` type)
+
+## [0.3.4] - 2026-03-18
+
+### Fixed
+- Set `probeOK=true` for apiservices with `insecureSkipTLSVerify` (eliminates false probe failure alerts)
+
 ## [0.3.3] - 2026-02-24
 
 ### Improved

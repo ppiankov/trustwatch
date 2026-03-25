@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -91,16 +90,12 @@ func (d *IngressDiscoverer) findingFromIngressTLS(ctx context.Context, ing *netw
 		return finding
 	}
 
-	if secret.Type != corev1.SecretTypeTLS {
-		finding.ProbeOK = false
-		finding.ProbeErr = fmt.Sprintf("secret %s/%s has type %s, expected %s", ing.Namespace, tls.SecretName, secret.Type, corev1.SecretTypeTLS)
-		return finding
-	}
-
+	// Accept kubernetes.io/tls and Opaque secrets that contain tls.crt
 	pemData, ok := secret.Data["tls.crt"]
 	if !ok {
 		finding.ProbeOK = false
-		finding.ProbeErr = errMissingTLSCrt
+		finding.ProbeErr = fmt.Sprintf("secret %s/%s (type %s) does not contain tls.crt key",
+			ing.Namespace, tls.SecretName, secret.Type)
 		return finding
 	}
 
