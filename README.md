@@ -470,6 +470,8 @@ external:
 
 The "certificate signed by unknown authority" warning can appear when the server doesn't send the full intermediate chain. Fix the server's TLS config to include intermediates.
 
+For a complete list of finding types and remediation steps, see [docs/finding-types.md](docs/finding-types.md).
+
 ## TrustPolicy CRD
 
 Declarative policy rules via `trustwatch.dev/v1alpha1` TrustPolicy resources:
@@ -605,7 +607,7 @@ When `--namespace` is used, trustwatch probes its own permissions via `SelfSubje
 
 ### Secret Access
 
-trustwatch reads `kubernetes.io/tls` Secrets to extract certificate expiry dates. It reads the `tls.crt` PEM data only — private keys (`tls.key`) are never accessed, logged, or stored. If you want to avoid Secret access entirely, remove the `secrets` permission and trustwatch will fall back to probe-only mode (TLS handshake) for all endpoints.
+trustwatch reads TLS Secrets to extract certificate expiry dates. Both `kubernetes.io/tls` and `Opaque` secrets are supported — trustwatch looks for the `tls.crt` key regardless of secret type. This handles common patterns like gRPC TLS secrets created with `kubectl create secret generic` instead of `kubectl create secret tls`. Only the `tls.crt` PEM data is read — private keys (`tls.key`) are never accessed, logged, or stored. If you want to avoid Secret access entirely, remove the `secrets` permission and trustwatch will fall back to probe-only mode (TLS handshake) for all endpoints.
 
 ### External Targets
 
