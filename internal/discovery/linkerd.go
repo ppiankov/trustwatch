@@ -109,7 +109,6 @@ func (d *LinkerdDiscoverer) discoverIssuer(ctx context.Context) (*store.CertFind
 
 	finding := store.CertFinding{
 		Source:    store.SourceLinkerd,
-		Severity:  store.SeverityCritical,
 		Namespace: linkerdNamespace,
 		Name:      linkerdIssuerSecret,
 		Notes:     "identity issuer",

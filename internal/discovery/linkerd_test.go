@@ -94,8 +94,8 @@ func TestLinkerdDiscoverer_BothPresent(t *testing.T) {
 	if iss.Source != store.SourceLinkerd {
 		t.Errorf("issuer: expected source %q, got %q", store.SourceLinkerd, iss.Source)
 	}
-	if iss.Severity != store.SeverityCritical {
-		t.Errorf("issuer: expected severity %q, got %q", store.SeverityCritical, iss.Severity)
+	if iss.Severity != "" {
+		t.Errorf("issuer: expected empty severity from discoverer (classification happens in orchestrator), got %q", iss.Severity)
 	}
 	if iss.Name != linkerdIssuerSecret {
 		t.Errorf("issuer: expected name %q, got %q", linkerdIssuerSecret, iss.Name)
