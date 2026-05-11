@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.9] - 2026-05-11
+
+### Added
+- `--scan-timeout` flag (default 120s) on `trustwatch now` — cancels hung discoverers instead of blocking forever
+
+### Changed
+- `Discoverer` interface now accepts `context.Context`; all 16 discoverers thread it through to k8s API and network calls
+
 ## [0.3.8] - 2026-05-11
 
 ### Fixed
