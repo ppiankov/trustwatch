@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.3.7] - 2026-05-11
+## [0.3.8] - 2026-05-11
 
 ### Fixed
 - Linkerd identity issuer no longer emits false CRIT when cert is healthy; severity is now computed from expiry like all other sources (re-tagged from v0.3.6 which was built before the fix landed)
