@@ -36,9 +36,7 @@ func (d *LinkerdDiscoverer) Name() string {
 
 // Discover checks for Linkerd presence and reads trust anchors and issuer cert.
 // Returns nil findings (not an error) if Linkerd is not installed.
-func (d *LinkerdDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
-
+func (d *LinkerdDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	// Check if the linkerd namespace exists
 	_, err := d.client.CoreV1().Namespaces().Get(ctx, linkerdNamespace, metav1.GetOptions{})
 	if err != nil {

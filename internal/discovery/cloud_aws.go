@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/acm"
@@ -27,10 +26,7 @@ type AWSACMDiscoverer struct{}
 func (d *AWSACMDiscoverer) Name() string { return "cloud.aws.acm" }
 
 // Discover lists ACM certificates and returns findings for each.
-func (d *AWSACMDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
+func (d *AWSACMDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("loading AWS config: %w", err)

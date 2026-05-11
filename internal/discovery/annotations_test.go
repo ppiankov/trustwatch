@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"context"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func TestAnnotationDiscoverer_NoAnnotatedObjects(t *testing.T) {
 	}
 
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -87,7 +88,7 @@ func TestAnnotationDiscoverer_ServiceDefaultPort(t *testing.T) {
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
 	d.probeFn = mockProbeResult(successProbeResult())
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -137,7 +138,7 @@ func TestAnnotationDiscoverer_ServiceCustomPorts(t *testing.T) {
 		return successProbeResult()
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -174,7 +175,7 @@ func TestAnnotationDiscoverer_ServiceWithSNI(t *testing.T) {
 		return successProbeResult()
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -208,7 +209,7 @@ func TestAnnotationDiscoverer_SeverityOverride(t *testing.T) {
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
 	d.probeFn = mockProbeResult(successProbeResult())
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -249,7 +250,7 @@ func TestAnnotationDiscoverer_TLSSecret(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,7 +288,7 @@ func TestAnnotationDiscoverer_TLSSecretNotFound(t *testing.T) {
 	}
 
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -327,7 +328,7 @@ func TestAnnotationDiscoverer_ExternalTargets(t *testing.T) {
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
 	d.probeFn = mockProbeResult(successProbeResult())
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -371,7 +372,7 @@ func TestAnnotationDiscoverer_Deployment(t *testing.T) {
 	}
 
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -414,7 +415,7 @@ func TestAnnotationDiscoverer_DeploymentNoProbeWithoutSecret(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -439,7 +440,7 @@ func TestAnnotationDiscoverer_ProbeFailure(t *testing.T) {
 	d := NewAnnotationDiscoverer(fake.NewClientset(objs...))
 	d.probeFn = mockProbeResult(failProbeResult())
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -545,7 +546,7 @@ func TestAnnotationDiscoverer_NamespaceFiltered(t *testing.T) {
 		WithAnnotationNamespaces([]string{testNS1}),
 	)
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 
@@ -34,15 +33,12 @@ func NewSPIFFEDiscoverer(socketPath string, opts ...func(*SPIFFEDiscoverer)) *SP
 func (d *SPIFFEDiscoverer) Name() string { return "spiffe" }
 
 // Discover connects to the SPIFFE workload API and returns findings for each root CA.
-func (d *SPIFFEDiscoverer) Discover() ([]store.CertFinding, error) {
+func (d *SPIFFEDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	// Check socket exists before attempting gRPC dial
 	if _, err := os.Stat(d.socketPath); err != nil {
 		slog.Debug("SPIFFE socket not found, skipping", "path", d.socketPath)
 		return nil, nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	client, err := workloadapi.New(ctx, workloadapi.WithAddr("unix://"+d.socketPath))
 	if err != nil {

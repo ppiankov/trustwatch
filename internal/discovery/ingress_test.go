@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -26,7 +27,7 @@ func TestIngressDiscoverer_Name(t *testing.T) {
 
 func TestIngressDiscoverer_NoIngresses(t *testing.T) {
 	d := NewIngressDiscoverer(fake.NewClientset())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestIngressDiscoverer_ValidTLSSecret(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestIngressDiscoverer_SecretNotFound(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -162,7 +163,7 @@ func TestIngressDiscoverer_EmptySecretName(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -189,7 +190,7 @@ func TestIngressDiscoverer_WrongSecretType(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestIngressDiscoverer_OpaqueSecretWithTLSCrt(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -269,7 +270,7 @@ func TestIngressDiscoverer_MalformedPEM(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -306,7 +307,7 @@ func TestIngressDiscoverer_MissingTLSCrtKey(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -362,7 +363,7 @@ func TestIngressDiscoverer_MultipleIngressesMultipleTLS(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -394,7 +395,7 @@ func TestIngressDiscoverer_NoTLSBlock(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -432,7 +433,7 @@ func TestIngressDiscoverer_NamespaceFiltered(t *testing.T) {
 	}
 
 	d := NewIngressDiscoverer(fake.NewClientset(objs...), WithIngressNamespaces([]string{"ns1"}))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

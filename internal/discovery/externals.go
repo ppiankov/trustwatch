@@ -1,6 +1,8 @@
 package discovery
 
 import (
+	"context"
+
 	"github.com/ppiankov/trustwatch/internal/config"
 	"github.com/ppiankov/trustwatch/internal/probe"
 	"github.com/ppiankov/trustwatch/internal/store"
@@ -37,7 +39,7 @@ func (d *ExternalDiscoverer) Name() string {
 }
 
 // Discover probes each configured external target.
-func (d *ExternalDiscoverer) Discover() ([]store.CertFinding, error) {
+func (d *ExternalDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	if len(d.targets) == 0 {
 		return nil, nil
 	}

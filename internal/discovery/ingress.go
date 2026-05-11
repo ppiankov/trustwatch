@@ -41,8 +41,7 @@ func (d *IngressDiscoverer) Name() string {
 
 // Discover lists Ingresses, dereferences their TLS secret references,
 // and parses the certificates found in those secrets.
-func (d *IngressDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
+func (d *IngressDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	var findings []store.CertFinding
 
 	for _, ns := range namespacesOrAll(d.namespaces) {

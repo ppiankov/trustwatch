@@ -5,7 +5,6 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azcertificates"
@@ -28,13 +27,10 @@ type AzureKeyVaultDiscoverer struct {
 func (d *AzureKeyVaultDiscoverer) Name() string { return "cloud.azure.keyvault" }
 
 // Discover lists Azure Key Vault certificates and returns findings for each.
-func (d *AzureKeyVaultDiscoverer) Discover() ([]store.CertFinding, error) {
+func (d *AzureKeyVaultDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	if d.vaultURL == "" {
 		return nil, nil
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {

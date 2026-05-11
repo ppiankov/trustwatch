@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -90,6 +91,7 @@ func init() {
 	nowCmd.Flags().StringSlice("tunnel-command", nil, "Override container command (e.g. 'microsocks,-p,1080')")
 	nowCmd.Flags().String("tunnel-pull-secret", "", "imagePullSecret name for the tunnel relay pod")
 	nowCmd.Flags().String("history-db", "", "Path to SQLite history database (save snapshot)")
+	nowCmd.Flags().Duration("scan-timeout", 120*time.Second, "Maximum time to wait for all discoverers to complete")
 	nowCmd.Flags().String("spiffe-socket", "", "Path to SPIFFE workload API socket")
 	nowCmd.Flags().String("cluster-name", "", "Name for this cluster in federated views")
 	nowCmd.Flags().StringSlice("remote", nil, "Remote trustwatch URLs (name=url format)")
@@ -347,7 +349,10 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	orch := discovery.NewOrchestrator(discoverers, cfg.WarnBefore, cfg.CritBefore, orchOpts...)
-	snap := orch.Run(context.Background())
+	scanTimeout, _ := cmd.Flags().GetDuration("scan-timeout") //nolint:errcheck // flag registered above
+	scanCtx, scanCancel := context.WithTimeout(context.Background(), scanTimeout)
+	defer scanCancel()
+	snap := orch.Run(scanCtx)
 	slog.Info("scan complete", "findings", len(snap.Findings))
 
 	ignoreManaged, _ := cmd.Flags().GetBool("ignore-managed") //nolint:errcheck // flag registered above

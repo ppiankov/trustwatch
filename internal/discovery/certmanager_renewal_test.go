@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -122,7 +123,7 @@ func TestCertManagerRenewalDiscoverer_Name(t *testing.T) {
 
 func TestCertManagerRenewalDiscoverer_CRDsAbsent(t *testing.T) {
 	d := NewCertManagerRenewalDiscoverer(renewalDynClient(), fake.NewClientset())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,7 +141,7 @@ func TestCertManagerRenewalDiscoverer_StalledRequest(t *testing.T) {
 	d := NewCertManagerRenewalDiscoverer(dyn, core, func(d *CertManagerRenewalDiscoverer) {
 		d.nowFn = func() time.Time { return now }
 	})
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -169,7 +170,7 @@ func TestCertManagerRenewalDiscoverer_RecentRequestIgnored(t *testing.T) {
 	d := NewCertManagerRenewalDiscoverer(dyn, core, func(d *CertManagerRenewalDiscoverer) {
 		d.nowFn = func() time.Time { return now }
 	})
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -190,7 +191,7 @@ func TestCertManagerRenewalDiscoverer_ReadyRequestIgnored(t *testing.T) {
 	d := NewCertManagerRenewalDiscoverer(dyn, core, func(d *CertManagerRenewalDiscoverer) {
 		d.nowFn = func() time.Time { return now }
 	})
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -207,7 +208,7 @@ func TestCertManagerRenewalDiscoverer_FailedChallenge(t *testing.T) {
 	core := fakeWithCertManagerRenewal()
 
 	d := NewCertManagerRenewalDiscoverer(dyn, core)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -232,7 +233,7 @@ func TestCertManagerRenewalDiscoverer_PendingChallenge(t *testing.T) {
 	core := fakeWithCertManagerRenewal()
 
 	d := NewCertManagerRenewalDiscoverer(dyn, core)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -249,7 +250,7 @@ func TestCertManagerRenewalDiscoverer_CertificateNotReady(t *testing.T) {
 	core := fakeWithCertManagerRenewal()
 
 	d := NewCertManagerRenewalDiscoverer(dyn, core)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -274,7 +275,7 @@ func TestCertManagerRenewalDiscoverer_CertificateReady(t *testing.T) {
 	core := fakeWithCertManagerRenewal()
 
 	d := NewCertManagerRenewalDiscoverer(dyn, core)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -298,7 +299,7 @@ func TestCertManagerRenewalDiscoverer_CustomStaleDuration(t *testing.T) {
 			d.nowFn = func() time.Time { return now }
 		},
 	)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -327,7 +328,7 @@ func TestCertManagerRenewalDiscoverer_NamespaceFiltered(t *testing.T) {
 			d.nowFn = func() time.Time { return now }
 		},
 	)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

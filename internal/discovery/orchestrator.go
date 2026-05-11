@@ -128,7 +128,7 @@ func (o *Orchestrator) Run(ctx context.Context) store.Snapshot {
 				defer span.End()
 			}
 			start := time.Now()
-			findings, err := d.Discover()
+			findings, err := d.Discover(ctx)
 			if o.discoverTimer != nil {
 				o.discoverTimer(d.Name(), time.Since(start))
 			}

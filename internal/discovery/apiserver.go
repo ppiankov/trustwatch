@@ -1,6 +1,8 @@
 package discovery
 
 import (
+	"context"
+
 	"github.com/ppiankov/trustwatch/internal/probe"
 	"github.com/ppiankov/trustwatch/internal/store"
 )
@@ -39,7 +41,7 @@ func (d *APIServerDiscoverer) Name() string {
 }
 
 // Discover probes the API server and returns a single finding.
-func (d *APIServerDiscoverer) Discover() ([]store.CertFinding, error) {
+func (d *APIServerDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	result := d.probeFn(probe.FormatTarget(d.target, ""))
 
 	finding := store.CertFinding{

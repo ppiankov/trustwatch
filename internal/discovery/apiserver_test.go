@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"math/big"
 	"net"
+	"context"
 	"testing"
 	"time"
 
@@ -41,7 +42,7 @@ func TestAPIServerDiscoverer_Discover(t *testing.T) {
 	defer listener.Close()
 
 	d := NewAPIServerDiscoverer(listener.Addr().String())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +87,7 @@ func TestAPIServerDiscoverer_ProbeFailure(t *testing.T) {
 	ln.Close()
 
 	d := NewAPIServerDiscoverer(addr)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

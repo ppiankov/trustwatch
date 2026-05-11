@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -51,7 +52,7 @@ func TestAPIServiceDiscoverer_WithServiceRef(t *testing.T) {
 	notAfter := time.Now().Add(24 * time.Hour)
 	d.probeFn = mockProbeFn(notAfter)
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -99,7 +100,7 @@ func TestAPIServiceDiscoverer_DefaultPort(t *testing.T) {
 	d := NewAPIServiceDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -129,7 +130,7 @@ func TestAPIServiceDiscoverer_CustomPort(t *testing.T) {
 	d := NewAPIServiceDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestAPIServiceDiscoverer_LocalSkipped(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -174,7 +175,7 @@ func TestAPIServiceDiscoverer_NoAPIServices(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestAPIServiceDiscoverer_Multiple(t *testing.T) {
 	d := NewAPIServiceDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -242,7 +243,7 @@ func TestAPIServiceDiscoverer_InsecureSkipTLSVerify(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -282,7 +283,7 @@ func TestAPIServiceDiscoverer_ProbeFailure(t *testing.T) {
 		return probe.Result{ProbeOK: false, ProbeErr: testProbeErrConnRefused}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

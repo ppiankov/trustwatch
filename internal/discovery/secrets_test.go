@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"context"
 	"testing"
 	"time"
 
@@ -64,7 +65,7 @@ func TestSecretDiscoverer_ValidTLSSecret(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -130,7 +131,7 @@ func TestSecretDiscoverer_MultiCertBundle(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestSecretDiscoverer_NonTLSSecretSkipped(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -168,7 +169,7 @@ func TestSecretDiscoverer_NonTLSSecretSkipped(t *testing.T) {
 
 func TestSecretDiscoverer_NoSecrets(t *testing.T) {
 	d := NewSecretDiscoverer(fake.NewClientset())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,7 +200,7 @@ func TestSecretDiscoverer_MultipleTLSSecrets(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -219,7 +220,7 @@ func TestSecretDiscoverer_MalformedPEM(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -249,7 +250,7 @@ func TestSecretDiscoverer_MissingTLSCrtKey(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -288,7 +289,7 @@ func TestSecretDiscoverer_NamespaceFiltered(t *testing.T) {
 	}
 
 	d := NewSecretDiscoverer(fake.NewClientset(objs...), WithSecretNamespaces([]string{"ns1", "ns3"}))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

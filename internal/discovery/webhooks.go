@@ -49,9 +49,7 @@ func (d *WebhookDiscoverer) Name() string {
 }
 
 // Discover lists all admission webhooks and probes their service endpoints.
-func (d *WebhookDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
-
+func (d *WebhookDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	vwcs, err := d.client.AdmissionregistrationV1().ValidatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("listing validating webhook configurations: %w", err)

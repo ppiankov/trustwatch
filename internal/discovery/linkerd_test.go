@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestLinkerdDiscoverer_Name(t *testing.T) {
 
 func TestLinkerdDiscoverer_NoLinkerdNamespace(t *testing.T) {
 	d := NewLinkerdDiscoverer(fake.NewClientset())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -60,7 +61,7 @@ func TestLinkerdDiscoverer_BothPresent(t *testing.T) {
 	}
 
 	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -125,7 +126,7 @@ func TestLinkerdDiscoverer_TrustRootsMissingKey(t *testing.T) {
 	}
 
 	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestLinkerdDiscoverer_IssuerMissingKey(t *testing.T) {
 	}
 
 	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -187,7 +188,7 @@ func TestLinkerdDiscoverer_MalformedPEM(t *testing.T) {
 	}
 
 	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -221,7 +222,7 @@ func TestLinkerdDiscoverer_IssuerFallbackTLSCrt(t *testing.T) {
 	}
 
 	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -252,7 +253,7 @@ func TestLinkerdDiscoverer_NamespaceAllFields(t *testing.T) {
 	}
 
 	d := NewLinkerdDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

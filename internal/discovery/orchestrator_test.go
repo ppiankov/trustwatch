@@ -16,8 +16,10 @@ type stubDiscoverer struct {
 	findings []store.CertFinding
 }
 
-func (s *stubDiscoverer) Name() string                           { return s.name }
-func (s *stubDiscoverer) Discover() ([]store.CertFinding, error) { return s.findings, s.err }
+func (s *stubDiscoverer) Name() string { return s.name }
+func (s *stubDiscoverer) Discover(_ context.Context) ([]store.CertFinding, error) {
+	return s.findings, s.err
+}
 
 func fixedNow() time.Time {
 	return time.Date(2025, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -597,8 +599,11 @@ type slowDiscoverer struct {
 }
 
 func (s *slowDiscoverer) Name() string { return s.name }
-func (s *slowDiscoverer) Discover() ([]store.CertFinding, error) {
-	time.Sleep(s.delay)
+func (s *slowDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
+	select {
+	case <-time.After(s.delay):
+	case <-ctx.Done():
+	}
 	return nil, nil
 }
 

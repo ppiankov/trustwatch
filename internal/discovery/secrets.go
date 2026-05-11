@@ -41,8 +41,7 @@ func (d *SecretDiscoverer) Name() string {
 }
 
 // Discover lists TLS Secrets and parses their leaf certificates.
-func (d *SecretDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
+func (d *SecretDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	var findings []store.CertFinding
 
 	for _, ns := range namespacesOrAll(d.namespaces) {

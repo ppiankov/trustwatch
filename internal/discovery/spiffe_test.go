@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"context"
 	"testing"
 	"time"
 
@@ -120,7 +121,7 @@ func TestSPIFFEDiscoverer_Name(t *testing.T) {
 
 func TestSPIFFEDiscoverer_SocketNotFound(t *testing.T) {
 	d := NewSPIFFEDiscoverer("/nonexistent/spire-agent.sock")
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

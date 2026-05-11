@@ -45,9 +45,7 @@ func (d *APIServiceDiscoverer) Name() string {
 }
 
 // Discover lists all APIService objects and probes those backed by an external service.
-func (d *APIServiceDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
-
+func (d *APIServiceDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	apiServices, err := d.client.ApiregistrationV1().APIServices().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("listing apiservices: %w", err)

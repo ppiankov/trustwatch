@@ -63,8 +63,7 @@ func (d *AnnotationDiscoverer) Name() string {
 }
 
 // Discover scans Services and Deployments for trustwatch.dev annotations.
-func (d *AnnotationDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
+func (d *AnnotationDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	var findings []store.CertFinding
 
 	for _, ns := range namespacesOrAll(d.namespaces) {

@@ -82,13 +82,12 @@ func (d *CertManagerRenewalDiscoverer) Name() string {
 
 // Discover checks for stuck renewals, failed challenges, and non-ready certificates.
 // Returns nil, nil if cert-manager CRDs are not installed.
-func (d *CertManagerRenewalDiscoverer) Discover() ([]store.CertFinding, error) {
+func (d *CertManagerRenewalDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	if !d.certManagerInstalled() {
 		slog.Debug("cert-manager CRDs not installed, skipping renewal check")
 		return nil, nil
 	}
 
-	ctx := context.Background()
 	var findings []store.CertFinding
 
 	stalledFindings, err := d.findStalledRequests(ctx)

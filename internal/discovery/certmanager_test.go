@@ -8,6 +8,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"math/big"
+	"context"
 	"testing"
 	"time"
 
@@ -150,7 +151,7 @@ func TestCertManagerDiscoverer_CRDsAbsent(t *testing.T) {
 	dynClient := newDynamicClient(t)
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -167,7 +168,7 @@ func TestCertManagerDiscoverer_ValidCertificate(t *testing.T) {
 	coreClient := fakeWithCertManager()
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -215,7 +216,7 @@ func TestCertManagerDiscoverer_FallbackToSecret(t *testing.T) {
 	coreClient := fakeWithCertManager(secret)
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -239,7 +240,7 @@ func TestCertManagerDiscoverer_SecretNotFound(t *testing.T) {
 	coreClient := fakeWithCertManager()
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -261,7 +262,7 @@ func TestCertManagerDiscoverer_NoCertificates(t *testing.T) {
 	coreClient := fakeWithCertManager()
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -279,7 +280,7 @@ func TestCertManagerDiscoverer_NamespaceFiltered(t *testing.T) {
 	coreClient := fakeWithCertManager()
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient, WithCertManagerNamespaces([]string{testNS1}))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -298,7 +299,7 @@ func TestCertManagerDiscoverer_NoSecretName(t *testing.T) {
 	coreClient := fakeWithCertManager()
 
 	d := NewCertManagerDiscoverer(dynClient, coreClient)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

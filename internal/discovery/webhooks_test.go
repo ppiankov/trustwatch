@@ -3,6 +3,7 @@ package discovery
 import (
 	"crypto/x509"
 	"math/big"
+	"context"
 	"testing"
 	"time"
 
@@ -54,7 +55,7 @@ func TestWebhookDiscoverer_ValidatingFailPolicy(t *testing.T) {
 	notAfter := time.Now().Add(24 * time.Hour)
 	d.probeFn = mockProbeFn(notAfter)
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestWebhookDiscoverer_MutatingIgnorePolicy(t *testing.T) {
 	d := NewWebhookDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +154,7 @@ func TestWebhookDiscoverer_DefaultPort(t *testing.T) {
 	d := NewWebhookDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -190,7 +191,7 @@ func TestWebhookDiscoverer_CustomPort(t *testing.T) {
 	d := NewWebhookDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -226,7 +227,7 @@ func TestWebhookDiscoverer_URLBasedSkipped(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -243,7 +244,7 @@ func TestWebhookDiscoverer_NoWebhooks(t *testing.T) {
 		return probe.Result{}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -305,7 +306,7 @@ func TestWebhookDiscoverer_MultipleWebhooks(t *testing.T) {
 	d := NewWebhookDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -338,7 +339,7 @@ func TestWebhookDiscoverer_ProbeFailure(t *testing.T) {
 		return probe.Result{ProbeOK: false, ProbeErr: testProbeErrConnRefused}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -380,7 +381,7 @@ func TestWebhookDiscoverer_NilFailurePolicy(t *testing.T) {
 	d := NewWebhookDiscoverer(client)
 	d.probeFn = mockProbeFn(time.Now().Add(24 * time.Hour))
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -65,7 +66,7 @@ func TestGatewayDiscoverer_Name(t *testing.T) {
 
 func TestGatewayDiscoverer_NoGateways(t *testing.T) {
 	d := NewGatewayDiscoverer(gatewayfake.NewSimpleClientset(), fakeWithGatewayAPI())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -107,7 +108,7 @@ func TestGatewayDiscoverer_ValidTLSSecret(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -169,7 +170,7 @@ func TestGatewayDiscoverer_SecretNotFound(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -202,7 +203,7 @@ func TestGatewayDiscoverer_NoTLSListeners(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -254,7 +255,7 @@ func TestGatewayDiscoverer_MultipleListeners(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI(coreObjs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -290,7 +291,7 @@ func TestGatewayDiscoverer_UnsupportedRefKind(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -327,7 +328,7 @@ func TestGatewayDiscoverer_UnsupportedRefGroup(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -346,7 +347,7 @@ func TestGatewayDiscoverer_UnsupportedRefGroup(t *testing.T) {
 
 func TestGatewayDiscoverer_CRDsAbsent(t *testing.T) {
 	d := NewGatewayDiscoverer(gatewayfake.NewSimpleClientset(), fake.NewClientset())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -410,7 +411,7 @@ func TestGatewayDiscoverer_NamespaceFiltered(t *testing.T) {
 		fakeWithGatewayAPI(coreObjs...),
 		WithGatewayNamespaces([]string{testNS1}),
 	)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -454,7 +455,7 @@ func TestGatewayDiscoverer_CrossNamespaceRef(t *testing.T) {
 	}
 
 	d := NewGatewayDiscoverer(newGatewayClientset(t, gw), fakeWithGatewayAPI(secret))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

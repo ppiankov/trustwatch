@@ -4,6 +4,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
+	"context"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func TestExternalDiscoverer_Name(t *testing.T) {
 
 func TestExternalDiscoverer_NoTargets(t *testing.T) {
 	d := NewExternalDiscoverer(nil)
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -58,7 +59,7 @@ func TestExternalDiscoverer_SingleTarget(t *testing.T) {
 		}
 	}
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +101,7 @@ func TestExternalDiscoverer_MultipleTargets(t *testing.T) {
 	d := NewExternalDiscoverer(targets)
 	d.probeFn = mockProbeResult(successProbeResult())
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -126,7 +127,7 @@ func TestExternalDiscoverer_ProbeFailure(t *testing.T) {
 	d := NewExternalDiscoverer(targets)
 	d.probeFn = mockProbeResult(failProbeResult())
 
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -148,7 +149,7 @@ func TestExternalDiscoverer_ProbeFailure(t *testing.T) {
 
 func TestExternalDiscoverer_EmptySlice(t *testing.T) {
 	d := NewExternalDiscoverer([]config.ExternalTarget{})
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +171,7 @@ func TestExternalDiscoverer_URLPassedDirectly(t *testing.T) {
 		return successProbeResult()
 	}
 
-	_, err := d.Discover()
+	_, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

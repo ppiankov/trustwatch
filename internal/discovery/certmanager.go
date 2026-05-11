@@ -55,9 +55,7 @@ func (d *CertManagerDiscoverer) Name() string {
 
 // Discover lists cert-manager Certificate CRs and extracts expiry information.
 // Returns nil, nil if cert-manager CRDs are not installed.
-func (d *CertManagerDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
-
+func (d *CertManagerDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	if !d.certManagerInstalled() {
 		slog.Debug("cert-manager CRDs not installed, skipping")
 		return nil, nil

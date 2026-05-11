@@ -1,6 +1,7 @@
 package discovery
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func TestIstioDiscoverer_Name(t *testing.T) {
 
 func TestIstioDiscoverer_NoIstioNamespace(t *testing.T) {
 	d := NewIstioDiscoverer(fake.NewClientset())
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestIstioDiscoverer_PluginCA(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -117,7 +118,7 @@ func TestIstioDiscoverer_SelfSignedCA(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestIstioDiscoverer_PluginCATakesPrecedence(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -194,7 +195,7 @@ func TestIstioDiscoverer_RootCertConfigMap(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -233,7 +234,7 @@ func TestIstioDiscoverer_RootCertCMMissingKey(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -264,7 +265,7 @@ func TestIstioDiscoverer_MalformedPEM(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -287,7 +288,7 @@ func TestIstioDiscoverer_NamespaceOnly(t *testing.T) {
 	objs := []runtime.Object{istioNamespaceObj()}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -312,7 +313,7 @@ func TestIstioDiscoverer_AllFieldsPopulated(t *testing.T) {
 	}
 
 	d := NewIstioDiscoverer(fake.NewClientset(objs...))
-	findings, err := d.Discover()
+	findings, err := d.Discover(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

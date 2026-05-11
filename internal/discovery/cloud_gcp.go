@@ -5,7 +5,6 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"time"
 
 	certificatemanager "cloud.google.com/go/certificatemanager/apiv1"
 	"cloud.google.com/go/certificatemanager/apiv1/certificatemanagerpb"
@@ -29,10 +28,7 @@ type GCPCertDiscoverer struct {
 func (d *GCPCertDiscoverer) Name() string { return "cloud.gcp.cert" }
 
 // Discover lists GCP managed certificates and returns findings for each.
-func (d *GCPCertDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
+func (d *GCPCertDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	client, err := certificatemanager.NewClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("creating GCP certificate manager client: %w", err)

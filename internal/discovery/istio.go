@@ -37,9 +37,7 @@ func (d *IstioDiscoverer) Name() string {
 
 // Discover checks for Istio presence and reads CA material from known locations.
 // Returns nil findings (not an error) if Istio is not installed.
-func (d *IstioDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
-
+func (d *IstioDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	_, err := d.client.CoreV1().Namespaces().Get(ctx, istioNamespace, metav1.GetOptions{})
 	if err != nil {
 		return nil, nil

@@ -49,9 +49,7 @@ func (d *GatewayDiscoverer) Name() string {
 // Discover lists all Gateways, extracts TLS certificate references from listeners,
 // and parses the certificates found in the referenced Secrets.
 // Returns nil, nil if the Gateway API CRDs are not installed.
-func (d *GatewayDiscoverer) Discover() ([]store.CertFinding, error) {
-	ctx := context.Background()
-
+func (d *GatewayDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
 	// Check if Gateway API CRDs are installed
 	if !d.gatewayAPIInstalled() {
 		slog.Debug("gateway API not installed, skipping")
