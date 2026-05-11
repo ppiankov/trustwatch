@@ -1,13 +1,13 @@
 package discovery
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	"context"
 	"testing"
 	"time"
 

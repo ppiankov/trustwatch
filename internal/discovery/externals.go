@@ -39,7 +39,7 @@ func (d *ExternalDiscoverer) Name() string {
 }
 
 // Discover probes each configured external target.
-func (d *ExternalDiscoverer) Discover(ctx context.Context) ([]store.CertFinding, error) {
+func (d *ExternalDiscoverer) Discover(_ context.Context) ([]store.CertFinding, error) {
 	if len(d.targets) == 0 {
 		return nil, nil
 	}

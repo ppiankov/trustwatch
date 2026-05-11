@@ -1,9 +1,9 @@
 package discovery
 
 import (
+	"context"
 	"crypto/x509"
 	"math/big"
-	"context"
 	"testing"
 	"time"
 

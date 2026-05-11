@@ -1,10 +1,10 @@
 package discovery
 
 import (
+	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"math/big"
-	"context"
 	"testing"
 	"time"
 
