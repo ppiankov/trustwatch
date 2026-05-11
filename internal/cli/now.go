@@ -7,7 +7,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -223,6 +225,14 @@ func runNow(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	defer closeRelay()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		closeRelay()
+		os.Exit(0)
+	}()
 
 	// Derive API server host from kubeconfig for local probing
 	apiServerTarget := apiServerFromHost(restCfg.Host)
